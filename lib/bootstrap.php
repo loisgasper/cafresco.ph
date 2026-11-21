@@ -46,6 +46,8 @@ function db(): PDO
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+        // Pin the connection collation to match the tables (MariaDB 11 defaults differ and break comparisons).
+        $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
         $pdo->exec("SET time_zone = '" . (new DateTime())->format('P') . "'");
     }
     return $pdo;

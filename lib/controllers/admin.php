@@ -336,7 +336,7 @@ function admin_rider_update(array $p): array
     $id = (int)$p['id'];
     if (!q1('SELECT user_id FROM rider_profiles WHERE user_id = ?', [$id])) fail(404, 'Rider not found');
     if (($a = in('approval')) && in_array($a, ['pending', 'approved', 'rejected'], true)) {
-        q('UPDATE rider_profiles SET approval = ?, is_online = IF(? = "approved", is_online, 0) WHERE user_id = ?', [$a, $a, $id]);
+        q('UPDATE rider_profiles SET approval = ?, is_online = IF(? = 1, is_online, 0) WHERE user_id = ?', [$a, $a === 'approved' ? 1 : 0, $id]);
         notify_user($id, $a === 'approved' ? 'You are approved!' : 'Rider application update',
             $a === 'approved' ? 'You can now go online and receive Cafresco pickup jobs.' : 'Your rider application is ' . $a . '.');
     }
