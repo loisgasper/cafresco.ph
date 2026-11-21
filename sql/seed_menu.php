@@ -2,6 +2,19 @@
 // Starter Cafresco menu, from the printed menu. Loaded once via POST /api/setup/seed-menu.
 // Each item: [name, hot price or null, iced 16oz price or null, customer favorite, short description]
 return [
+    // Extra descriptions for names used in Loyverse, matched case-insensitively (used by setup/fill-descriptions).
+    'extra' => [
+        'Capuccino' => [true, 'Espresso with milk and a cloud of foam. Rich, airy and perfectly balanced.'],
+        'Matcha' => [true, 'Earthy green tea whisked into milk. Calm, creamy and lightly sweet.'],
+        'Dark Choco' => [true, 'Deeper, bittersweet cocoa for true chocolate lovers.'],
+        'Blueberry' => [false, 'Blueberry and milk with a fruity, gently tangy finish.'],
+        'Mango' => [false, 'Mango and milk. Light, sunny and smooth.'],
+        'Taro' => [false, 'Creamy purple yam (ube) milk. Nutty, sweet and very Pinoy.'],
+        'Butterscotch' => [false, 'Brown sugar and butter notes swirled into espresso and milk. Warm and mellow.'],
+        'Macadamia Nut' => [false, 'Smooth, buttery macadamia flavor in a creamy espresso latte.'],
+        'Nutella Latte' => [false, 'Chocolate hazelnut spread blended into an iced latte. Rich and dessert-like.'],
+        'White Mocha' => [false, 'Espresso with creamy white chocolate and milk. Sweet, silky and smooth.'],
+    ],
     'addons' => [
         'name' => 'Add-ons',
         'items' => [['Extra espresso shot', 60], ['Oat milk', 35], ['Foam', 30], ['Sweet foam', 35], ['Sea salt foam', 35], ['Syrup', 30]],

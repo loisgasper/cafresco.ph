@@ -267,3 +267,27 @@ function setup_seed_menu(): array
     }
     return ['ok' => true, 'message' => "Loaded $count drinks."];
 }
+
+/**
+ * Fill in short descriptions (and the customer-favorite flag) for products that have no description yet,
+ * matched by name against the starter menu. Never overwrites a description someone already wrote.
+ */
+function setup_fill_descriptions(): array
+{
+    require_setup_token();
+    run_migrations();
+    $menu = require APP_ROOT . '/sql/seed_menu.php';
+    $norm = fn(string $n) => preg_replace('/[^a-z0-9]+/', '', strtolower($n));
+    $map = [];
+    foreach ($menu['categories'] as $cat) foreach ($cat['items'] as [$name, , , $fav, $desc]) $map[$norm($name)] = [$fav, $desc];
+    foreach ($menu['extra'] as $name => [$fav, $desc]) $map[$norm($name)] = [$fav, $desc];
+    $filled = 0; $missing = [];
+    foreach (qall('SELECT id, name, description FROM products') as $p) {
+        if (trim((string)$p['description']) !== '') continue;
+        $hit = $map[$norm($p['name'])] ?? null;
+        if (!$hit) { $missing[] = $p['name']; continue; }
+        q('UPDATE products SET description = ?, featured = GREATEST(featured, ?) WHERE id = ?', [$hit[1], $hit[0] ? 1 : 0, $p['id']]);
+        $filled++;
+    }
+    return ['ok' => true, 'filled' => $filled, 'no_match' => $missing];
+}
