@@ -279,3 +279,94 @@ table.t tr.click:hover td { background: var(--concrete); }
   .marquee .track, .steam path, .rotator.swap { animation: none; }
 }
 @media (max-width: 560px) { .hero.warm p { display: none; } .hero.warm .stamp { padding: 12px; } .hero.warm h1 { font-size: 1.9rem; } }
+
+/* ---------- Borderless, soft look with left-to-right hover sweep ---------- */
+:root {
+  --line: 0 solid transparent;
+  --shadow: 0 6px 22px rgba(43, 29, 22, .08);
+  --shadow-lg: 0 14px 40px rgba(43, 29, 22, .14);
+  --radius: 14px;
+  --radius-sm: 10px;
+}
+.topbar { box-shadow: 0 1px 0 rgba(43, 29, 22, .06); }
+.panel, .kpi, .ocard, .drink, .guide-card, .hero .stamp, .stamp, .tablewrap, .notice, .empty, .product, .sheet { border: 0; border-radius: var(--radius); }
+.panel, .kpi, .ocard, .drink, .guide-card, .stamp, .tablewrap { box-shadow: var(--shadow); }
+.panel.shadow { box-shadow: var(--shadow-lg); }
+.empty { background: var(--concrete); }
+.notice { border-radius: var(--radius-sm); }
+.sheet { box-shadow: var(--shadow-lg); overflow: hidden auto; }
+.sheet header, .sheet footer { border: 0; }
+.sheet header { box-shadow: 0 1px 0 rgba(43, 29, 22, .07); }
+.sheet footer { box-shadow: 0 -1px 0 rgba(43, 29, 22, .07); }
+@media (max-width: 560px) { .sheet { border-radius: 20px 20px 0 0; } }
+.marquee, .hero, .guide, .footer, .cats, .bottomnav, .lines, .totals .grand, .steps, .steps div, .seg, .seg button, .timeline, .qty, .qty span, .side, .side .brand, .adminbar, table.t th { border: 0 !important; }
+.bottomnav { box-shadow: 0 -4px 18px rgba(43, 29, 22, .08); }
+.side { box-shadow: 1px 0 0 rgba(43, 29, 22, .06); }
+.totals .grand { box-shadow: 0 -1px 0 rgba(43, 29, 22, .15); }
+table.t th { box-shadow: 0 1px 0 rgba(43, 29, 22, .12); }
+table.t td { border-bottom-color: rgba(43, 29, 22, .07); }
+.line { border-bottom-color: rgba(43, 29, 22, .08); }
+.timeline { box-shadow: inset 2px 0 0 var(--concrete-2); }
+.timeline li::before { border: 0; background: var(--concrete-2); border-radius: 50%; }
+.timeline li:last-child::before { background: var(--clay); }
+.steps { background: var(--concrete); border-radius: var(--radius-sm); overflow: hidden; }
+.steps div.on { background: var(--ink); }
+
+/* Inputs: soft filled fields instead of outlines */
+input, select, textarea { border: 0; background-color: var(--concrete); border-radius: var(--radius-sm); }
+input:focus, select:focus, textarea:focus { background-color: #fff; outline: 2px solid var(--clay); outline-offset: 0; }
+.btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--clay); outline-offset: 3px; }
+.check { border: 0; margin-bottom: 6px; border-radius: var(--radius-sm); background-color: var(--concrete); }
+.check:has(input:checked) { background-color: var(--blush); }
+.qty { background: var(--concrete); border-radius: var(--radius-sm); overflow: hidden; }
+.qty button { background: transparent; }
+.seg { background: var(--concrete); border-radius: var(--radius-sm); padding: 4px; gap: 4px; }
+.seg button { background-color: transparent; border-radius: 8px; }
+.iconbtn { border: 0; background: var(--concrete); border-radius: 50%; }
+.tag { border: 0; border-radius: 999px; padding: 3px 9px; background: var(--concrete); }
+.tag.dark { background: var(--ink); }
+.tag.clay { background: var(--clay); }
+.tag.ok { background: #e3eddf; } .tag.warn { background: #f6e8cf; } .tag.bad { background: #f7dcd8; }
+.badge { border: 0; border-radius: 999px; }
+.drink .plus { border: 0; border-radius: 50%; background-color: var(--blush); transition: transform .3s ease, background-color .3s; }
+.drink:hover .plus { transform: rotate(90deg); background-color: var(--clay); color: #fff; }
+.cats button { border: 0; border-radius: 999px; background-color: var(--concrete); }
+.topnav a { border: 0 !important; border-radius: 999px; }
+.topnav a.active { background-color: var(--ink); color: var(--paper); }
+.toast { border: 0; border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); }
+.toast.bad { border: 0; }
+.install { border-radius: var(--radius); }
+.subrow input { border-radius: 8px; }
+.side a.nav { border-radius: 0 999px 999px 0; margin-right: 12px; }
+
+/* Buttons: no outline or hard shadow */
+.btn { border: 0; border-radius: 999px; box-shadow: none; }
+.btn.sm { box-shadow: none; }
+.btn.danger { border: 0; box-shadow: none; background-color: #f7dcd8; }
+.btn.ghost { background-color: var(--concrete); }
+.btn:active { transform: scale(.97); box-shadow: none; }
+.product:hover, .drink:hover, .ocard:hover { transform: none; }
+.ocard.alert { border: 0; box-shadow: 0 0 0 2px var(--clay), var(--shadow); }
+
+/* Left-to-right hover sweep */
+.btn, .drink, .ocard, .cats button, .seg button, .topnav a, .side a.nav, .check, .bottomnav a, table.t tr.click td, .guide-card {
+  --sweep: var(--blush);
+  background-image: linear-gradient(var(--sweep), var(--sweep));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 0% 100%;
+  transition: background-size .45s cubic-bezier(.22, .61, .36, 1), color .3s ease, box-shadow .3s ease;
+}
+.btn { --sweep: var(--clay); }
+.btn.clay { --sweep: var(--ink); }
+.btn.ghost, .btn.danger { --sweep: var(--concrete-2); }
+.side a.nav, .topnav a, .bottomnav a { --sweep: var(--blush); }
+.btn:hover, .drink:hover, .ocard:hover, .cats button:hover, .seg button:hover, .topnav a:hover, .side a.nav:hover, .check:hover,
+.bottomnav a:hover, table.t tr.click:hover td, .guide-card:hover { background-size: 100% 100%; }
+.drink:hover, .ocard:hover { box-shadow: var(--shadow-lg); }
+.side a.nav:hover, .topnav a:hover { color: var(--ink); }
+.side a.nav.active, .topnav a.active, .cats button.on, .seg button.on, .bottomnav a.active { background-color: var(--ink); color: var(--paper); --sweep: var(--ink); }
+table.t tr.click:hover td { background-color: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .btn, .drink, .ocard, .cats button, .seg button, .topnav a, .side a.nav, .check, .bottomnav a, table.t tr.click td, .guide-card { transition: none; }
+}

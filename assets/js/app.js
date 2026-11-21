@@ -104,7 +104,7 @@
 
   function drinkCard(p) {
     const prices = p.variants.length
-      ? p.variants.map((v) => `<span><small>${esc(v.name)}</small><b>${peso(v.price).replace('.00', '')}</b></span>`).join('')
+      ? p.variants.slice().sort((a, b) => a.price - b.price).map((v) => `<span><small>${esc(v.name)}</small><b>${peso(v.price).replace('.00', '')}</b></span>`).join('')
       : `<span><b>${peso(p.price).replace('.00', '')}</b></span>`;
     return `<button class="drink${p.sold_out ? ' soldout' : ''}" data-pid="${p.id}" ${p.sold_out ? 'disabled' : ''}>
       <div class="info">
@@ -434,9 +434,9 @@
           <div class="label">Amount</div><div class="row"><b class="mono" style="font-size:1.2rem">${peso(o.total)}</b><button class="btn sm ghost" data-copy="${o.total.toFixed(2)}">Copy</button></div>
           <div class="small muted" style="margin-top:8px">Put <b class="mono">${esc(o.code)}</b> in the GCash message.</div>
         </div>
-        ${c.gcash_qr ? `<img src="${esc(c.gcash_qr)}" alt="GCash QR code" style="border:2px solid var(--ink);max-width:220px;justify-self:center">` : ''}
+        ${c.gcash_qr ? `<img src="${esc(c.gcash_qr)}" alt="GCash QR code" style="border:0;max-width:220px;justify-self:center">` : ''}
       </div>
-      <form id="proofForm" style="margin-top:16px;border-top:2px solid var(--ink);padding-top:16px">
+      <form id="proofForm" style="margin-top:16px;border-top:0;padding-top:16px">
         <label class="field"><span>GCash reference no.</span><input name="gcash_ref" inputmode="numeric" required minlength="10" maxlength="20" placeholder="13-digit reference" class="mono"></label>
         <label class="field"><span>Sender name (as shown in GCash)</span><input name="gcash_sender" maxlength="120"></label>
         <label class="field"><span>Receipt screenshot</span><input name="proof" type="file" accept="image/png,image/jpeg,image/webp" required></label>

@@ -26,7 +26,7 @@
       <aside class="side" id="side">
         <a class="brand" href="admin/#/">Cafresco<small>Back office</small></a>
         ${NAV.map(([k, l]) => `<a class="nav" href="admin/#/${k === 'live' ? '' : k}" data-nav="${k}">${l}${k === 'live' ? ' <span class="badge hidden" id="needBadge">0</span>' : ''}</a>`).join('')}
-        <div style="padding:18px;border-top:2px solid var(--ink);margin-top:12px">
+        <div style="padding:18px;border-top:0;margin-top:12px">
           <label class="row small" style="margin-bottom:12px"><input type="checkbox" id="storeOpen"> Accepting online orders</label>
           <div class="small muted">${esc(S.user.name)} · ${esc(S.user.role)}</div>
           <div class="row" style="margin-top:8px"><a class="btn sm ghost" href="./">Shop</a><button class="btn sm ghost" id="logout">Log out</button></div>
@@ -121,11 +121,11 @@
         <div class="grand"><span>${o.payment_method === 'gcash' ? 'GCash total' : 'Collect on pickup'}</span><span>${peso(o.total)}</span></div></div>
       ${o.payment_method === 'gcash' ? `<div class="panel"><div class="label">GCash payment</div>
         ${o.gcash_ref ? `<div>Ref <b class="mono">${esc(o.gcash_ref)}</b> ${o.duplicate_ref ? '<span class="tag bad">Ref used on another order!</span>' : ''}</div><div class="small">Sender: ${esc(o.gcash_sender || '—')}</div>` : '<div class="muted small">No proof uploaded yet.</div>'}
-        ${o.has_proof ? `<a href="api/files/proof/${o.id}" target="_blank" rel="noopener"><img src="api/files/proof/${o.id}" alt="Payment proof" style="max-height:360px;border:2px solid var(--ink);margin-top:10px"></a>
+        ${o.has_proof ? `<a href="api/files/proof/${o.id}" target="_blank" rel="noopener"><img src="api/files/proof/${o.id}" alt="Payment proof" style="max-height:360px;border:0;margin-top:10px"></a>
           <p class="small muted" style="margin-top:8px">Check your GCash app: amount <b>${peso(o.total)}</b> and the reference number must match before confirming.</p>` : ''}</div>` : ''}
       <div class="panel"><div class="label">Staff note (private)</div><div class="row" style="flex-wrap:nowrap"><input id="snote" value="${esc(o.staff_note || '')}" maxlength="500"><button class="btn sm ghost" id="saveNote" style="min-height:46px">Save</button></div></div>
       <details><summary class="small">History</summary><ul class="timeline" style="margin-top:10px">${o.events.map((e) => `<li><b>${esc(STATUS[e.status] || e.status)}</b> <span class="small muted">${fmtDate(e.created_at)}</span>${e.note ? `<div class="small muted">${esc(e.note)}</div>` : ''}</li>`).join('')}</ul></details>
-      ${o.next_statuses.length ? `<div style="margin-top:16px;border-top:2px solid var(--ink);padding-top:16px">
+      ${o.next_statuses.length ? `<div style="margin-top:16px;border-top:0;padding-top:16px">
         ${o.next_statuses.includes('confirmed') && !o.customer_mobile_verified ? '<label class="row small" style="margin-bottom:10px"><input type="checkbox" id="vm"> I called/messaged the customer, mark their mobile as verified</label>' : ''}
         <input id="actNote" placeholder="Note to customer (optional, e.g. reason for rejecting)" style="margin-bottom:10px">
         <div class="row">${o.next_statuses.map((s) => `<button class="btn ${['rejected', 'cancelled'].includes(s) ? 'danger' : s === 'pending_payment' ? 'ghost' : 'clay'}" data-to="${s}">${ACTION_LABEL[s] || s}</button>`).join('')}</div></div>` : ''}
@@ -391,7 +391,7 @@
       </div>
       <div class="grid2" style="align-items:start">
         <div class="panel"><h2>Last 7 days</h2>${d.week.length ? d.week.map((w) => `<div style="margin-bottom:8px"><div class="row small" style="justify-content:space-between"><span>${esc(w.d)}</span><span class="mono">${peso(w.s)} · ${w.n}</span></div>
-          <div style="height:12px;border:2px solid var(--ink);margin-top:3px"><div style="height:100%;width:${(Number(w.s) / max) * 100}%;background:var(--ink)"></div></div></div>`).join('') : '<p class="muted">No completed orders yet.</p>'}</div>
+          <div style="height:12px;border:0;margin-top:3px"><div style="height:100%;width:${(Number(w.s) / max) * 100}%;background:var(--ink)"></div></div></div>`).join('') : '<p class="muted">No completed orders yet.</p>'}</div>
         <div class="panel"><h2>Top items · 30 days</h2>${d.top_items.length ? `<div class="lines">${d.top_items.map((t, i) => `<div class="line"><div class="grow"><b>${i + 1}. ${esc(t.name)}</b></div><div class="amt">${t.q} sold</div></div>`).join('')}</div>` : '<p class="muted">No data yet.</p>'}</div>
       </div>`;
   }
@@ -410,7 +410,7 @@
         ${f('banner_text', 'Moving banner text (separate messages with ·)', 'text', 'maxlength="600"')}</div>
       <div class="panel"><h2>GCash</h2><div class="grid2">${f('gcash_name', 'Account name')}${f('gcash_number', 'GCash number')}</div>
         <label class="field"><span>GCash QR image</span><div class="row" style="flex-wrap:nowrap">${f('gcash_qr', '').replace(/<label class="field"><span><\/span>|<\/label>/g, '')}${isAdmin ? '<input type="file" id="qrUp" accept="image/*" style="max-width:130px">' : ''}</div></label>
-        ${s.gcash_qr ? `<img src="${esc(s.gcash_qr)}" alt="QR" style="max-width:160px;border:2px solid var(--ink)">` : ''}
+        ${s.gcash_qr ? `<img src="${esc(s.gcash_qr)}" alt="QR" style="max-width:160px;border:0">` : ''}
         ${f('payment_window_minutes', 'Minutes allowed to upload GCash proof before auto-cancel', 'number', 'min="5"')}</div>
       <div class="panel"><h2>Loyalty points (online orders only)</h2><div class="grid2">
         ${f('points_per_peso', 'Points earned per ₱1 (0.02 = 2 pts per ₱100)', 'number', 'step="0.001" min="0"')}${f('peso_per_point', 'Peso value of 1 point', 'number', 'step="0.01" min="0"')}

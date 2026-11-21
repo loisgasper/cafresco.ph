@@ -120,7 +120,7 @@
     box.id = 'installBox';
     box.className = 'install panel shadow';
     box.innerHTML = `<div class="row" style="align-items:flex-start;flex-wrap:nowrap">
-      <img src="${BASE}assets/icons/icon-192.png" width="48" height="48" alt="" style="border:2px solid var(--ink)">
+      <img src="${BASE}assets/icons/icon-192.png" width="48" height="48" alt="" style="border:0">
       <div style="flex:1"><b>Install the Cafresco app</b><div class="small muted">${ios
         ? 'Tap the Share button <b>⬆︎</b> in Safari, then <b>Add to Home Screen</b>.'
         : 'Order faster from your home screen. Free, no app store needed.'}</div></div>
