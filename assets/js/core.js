@@ -133,5 +133,18 @@
   }
   window.addEventListener('load', () => setTimeout(showInstall, 2500));
 
-  window.CF = { api, esc, peso, $, $$, toast, modal, busy, formData, router, beep, systemNotify, fmtDate, initials, BASE, isMobile, isStandalone };
+  /** One GPS reading from the device. Resolves {lat, lng, acc} or rejects with a friendly message. */
+  function getPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('This browser cannot share location.')); return; }
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy) }),
+        (e) => reject(new Error(e.code === 1 ? 'Location is blocked. Allow location for this site in your browser settings, then try again.' : 'Could not get your location. Turn on GPS and try again.')),
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    });
+  }
+  const mapsLink = (lat, lng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  const dirLink = (lat, lng) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+  window.CF = { api, esc, peso, $, $$, toast, modal, busy, formData, router, beep, systemNotify, fmtDate, initials, BASE, isMobile, isStandalone, getPosition, mapsLink, dirLink };
 })();

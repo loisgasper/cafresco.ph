@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS rider_companies (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   contact VARCHAR(120) NULL,
+  base_rate DECIMAL(10,2) NULL,
+  rate_note VARCHAR(200) NULL,
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -49,6 +51,9 @@ CREATE TABLE IF NOT EXISTS rider_profiles (
   approval ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   is_online TINYINT(1) NOT NULL DEFAULT 0,
   last_seen_at DATETIME NULL,
+  lat DECIMAL(9,6) NULL,
+  lng DECIMAL(9,6) NULL,
+  loc_at DATETIME NULL,
   CONSTRAINT fk_rp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_rp_company FOREIGN KEY (company_id) REFERENCES rider_companies(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -155,7 +160,13 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_note VARCHAR(500) NULL,
   delivery_address VARCHAR(500) NULL,
   own_rider_info VARCHAR(200) NULL,
+  delivery_lat DECIMAL(9,6) NULL,
+  delivery_lng DECIMAL(9,6) NULL,
   rider_id INT UNSIGNED NULL,
+  rider_fee DECIMAL(10,2) NULL,
+  rider_quote_status ENUM('pending','accepted') NULL,
+  rider_quote_at DATETIME NULL,
+  declined_riders VARCHAR(500) NULL,
   gcash_ref VARCHAR(40) NULL,
   gcash_sender VARCHAR(120) NULL,
   proof_file VARCHAR(120) NULL,
@@ -238,6 +249,8 @@ INSERT IGNORE INTO settings (k, v) VALUES
  ('store_open', '1'),
  ('store_hours', 'Daily 10:00 AM - 9:00 PM'),
  ('store_address', ''),
+ ('store_lat', ''),
+ ('store_lng', ''),
  ('store_phone', ''),
  ('facebook_url', ''),
  ('gcash_name', ''),

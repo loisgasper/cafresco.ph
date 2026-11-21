@@ -12,10 +12,11 @@ function notify_staff(string $title, string $body = '', ?int $orderId = null): v
 }
 
 /** Notify every approved rider who is currently online. Returns how many were notified. */
-function notify_online_riders(string $title, string $body, int $orderId): int
+function notify_online_riders(string $title, string $body, int $orderId, array $exclude = []): int
 {
     $riders = qall('SELECT rp.user_id FROM rider_profiles rp JOIN users u ON u.id = rp.user_id
         WHERE rp.approval = "approved" AND rp.is_online = 1 AND u.status = "active" AND rp.last_seen_at >= ?', [date('Y-m-d H:i:s', time() - 1800)]);
+    $riders = array_values(array_filter($riders, fn($r) => !in_array((int)$r['user_id'], $exclude, true)));
     foreach ($riders as $r) notify_user((int)$r['user_id'], $title, $body, $orderId);
     return count($riders);
 }

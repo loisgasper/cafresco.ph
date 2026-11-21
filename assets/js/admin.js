@@ -110,7 +110,9 @@
         <div class="panel"><div class="label">Fulfilment</div><b>${FF[o.fulfillment]}</b>${o.pickup_time ? ` · ${fmtDate(o.pickup_time)}` : ' · ASAP'}
           ${o.delivery_address ? `<div class="small">${esc(o.delivery_address)}</div>` : ''}
           ${o.own_rider_info ? `<div class="small">Rider: ${esc(o.own_rider_info)}</div>` : ''}
-          ${o.rider ? `<div class="small">Partner: <b>${esc(o.rider.name)}</b> (${esc(o.rider.company)}) ${esc(o.rider.plate_no || '')} · ${esc(o.rider.mobile)}</div>` : ''}
+          ${o.rider ? `<div class="small">Partner: <b>${esc(o.rider.name)}</b> (${esc(o.rider.company)}) ${esc(o.rider.plate_no || '')} · ${esc(o.rider.mobile)}${o.rider_fee !== null ? ` · fee ${peso(o.rider_fee)} ${o.rider_quote_status === 'pending' ? '<span class="tag warn">waiting for customer</span>' : '<span class="tag ok">accepted</span>'}` : ''}</div>` : ''}
+          ${o.fulfillment === 'partner_rider' && !o.rider && o.declined_count ? `<div class="small muted">Customer declined ${o.declined_count} rider offer(s). Looking for another rider.</div>` : ''}
+          ${o.delivery_lat !== null ? `<div class="small"><a href="${CF.mapsLink(o.delivery_lat, o.delivery_lng)}" target="_blank" rel="noopener">📍 Customer GPS pin</a></div>` : ''}
           ${o.customer_note ? `<div class="notice small" style="margin:8px 0 0">“${esc(o.customer_note)}”</div>` : ''}</div>
       </div>
       <div class="lines">${o.items.map((i) => `<div class="line"><div class="grow"><b>${i.qty}× ${esc(i.name)}</b>${i.variant_name ? ' · ' + esc(i.variant_name) : ''}
@@ -355,7 +357,7 @@
     const cname = (id) => companies.find((c) => Number(c.id) === Number(id))?.name || '—';
     main().innerHTML = `<div class="toolbar"><h1>Riders</h1><button class="btn sm clay" id="newCo">+ Rider company</button></div>
       <p class="muted">Riders sign up at <b class="mono">${location.origin}/rider/</b> and pick their company. Approve them here. Online riders get alerts for “Find a rider” orders.</p>
-      <div class="board" style="margin-bottom:24px">${companies.map((c) => `<div class="ocard" data-coid="${c.id}"><b>${esc(c.name)}</b><div class="small muted">${esc(c.contact || '')}</div>
+      <div class="board" style="margin-bottom:24px">${companies.map((c) => `<div class="ocard" data-coid="${c.id}"><b>${esc(c.name)}</b><div class="small muted">${esc(c.contact || '')}</div><div class="small">${c.base_rate !== null ? 'From <b>' + peso(c.base_rate) + '</b>' : '<span class="muted">No starting rate set</span>'}${c.rate_note ? ' · ' + esc(c.rate_note) : ''}</div>
         <div class="small">${c.rider_count} approved riders ${Number(c.active) ? '' : '<span class="tag">inactive</span>'}</div></div>`).join('') || '<div class="empty">Add the rider companies in your city first.</div>'}</div>
       <div class="tablewrap"><table class="t"><thead><tr><th>Rider</th><th>Company</th><th>Vehicle</th><th>Status</th><th>Deliveries</th><th></th></tr></thead><tbody>
       ${riders.map((r) => `<tr><td><b>${esc(r.name)}</b><div class="small muted">${esc(r.mobile)} · ${esc(r.email)}</div></td><td>${esc(cname(r.company_id))}</td>
@@ -375,6 +377,9 @@
     const m = modal(c.id ? 'Edit rider company' : 'New rider company', `<form id="cof">
       <label class="field"><span>Company name</span><input name="name" value="${esc(c.name)}" required></label>
       <label class="field"><span>Contact (dispatcher, FB page, number)</span><input name="contact" value="${esc(c.contact || '')}"></label>
+      <div class="grid2"><label class="field"><span>Starting rate (₱)</span><input name="base_rate" type="number" min="0" step="1" value="${c.base_rate !== null && c.base_rate !== undefined ? esc(String(Math.round(c.base_rate))) : ''}" placeholder="e.g. 50"></label>
+      <label class="field"><span>Rate note (optional)</span><input name="rate_note" maxlength="200" value="${esc(c.rate_note || '')}" placeholder="e.g. first 3 km, +₱10 per km"></label></div>
+      <p class="small muted" style="margin-top:-4px">Customers see the starting rate at checkout. Riders of this company cannot offer less than it.</p>
       <label class="row small"><input type="checkbox" name="active" ${Number(c.active) ? 'checked' : ''}> Active (riders can choose it)</label></form>`,
     { footer: '<span style="flex:1"></span><button class="btn clay" id="saveCo">Save</button>' });
     $('#saveCo', m.el).onclick = (e) => busy(e.target, async () => { const f = $('#cof', m.el); if (!f.reportValidity()) return; await api('admin/rider-companies', { body: { id: c.id || null, ...formData(f) } }); m.close(); showRiders(); });
@@ -409,6 +414,9 @@
       ${isAdmin ? '' : '<div class="notice">Only the owner (admin) can change settings.</div>'}
       <form id="sf">
       <div class="panel"><h2>Store</h2><div class="grid2">${f('store_name', 'Store name')}${f('store_hours', 'Hours shown to customers')}${f('store_address', 'Address')}${f('store_phone', 'Phone')}${f('facebook_url', 'Facebook page URL', 'url')}${f('min_prep_minutes', 'Minimum prep time (minutes)', 'number')}</div>
+        <div class="label" style="margin-top:6px">Café GPS pin (lets riders see the distance to each drop-off)</div>
+        <div class="grid2">${f('store_lat', 'Latitude', 'text', 'inputmode="decimal" placeholder="e.g. 14.599512"')}${f('store_lng', 'Longitude', 'text', 'inputmode="decimal" placeholder="e.g. 120.984222"')}</div>
+        ${isAdmin ? '<div class="row small" style="margin-bottom:12px"><button type="button" class="btn sm ghost" id="pinCafe">📍 Use this phone\'s location</button><span class="muted">Tap this while standing at the café, then Save.</span></div>' : ''}
         ${f('banner_text', 'Moving banner text (separate messages with ·)', 'text', 'maxlength="600"')}</div>
       <div class="panel"><h2>GCash</h2><div class="grid2">${f('gcash_name', 'Account name')}${f('gcash_number', 'GCash number')}</div>
         <label class="field"><span>GCash QR image</span><div class="row" style="flex-wrap:nowrap">${f('gcash_qr', '').replace(/<label class="field"><span><\/span>|<\/label>/g, '')}${isAdmin ? '<input type="file" id="qrUp" accept="image/*" style="max-width:130px">' : ''}</div></label>
@@ -428,6 +436,12 @@
       ${isAdmin ? '<div class="panel" style="margin-top:24px"><h2>Staff accounts</h2><div id="staff"></div></div>' : ''}`;
     const qr = $('#qrUp');
     if (qr) qr.onchange = (e) => busy(null, async () => { const fd = new FormData(); fd.append('file', e.target.files[0]); const r = await api('admin/upload', { body: fd }); $('[name=gcash_qr]').value = r.url; toast('QR uploaded. Click Save settings.'); });
+    const pc = $('#pinCafe');
+    if (pc) pc.onclick = () => busy(pc, async () => {
+      const g = await CF.getPosition();
+      $('#sf [name=store_lat]').value = g.lat; $('#sf [name=store_lng]').value = g.lng;
+      toast(`Pinned (about ${g.acc} m accuracy). Press Save to keep it.`);
+    });
     $('#sf').onsubmit = (e) => { e.preventDefault(); busy(e.submitter, async () => { await api('admin/settings', { body: formData(e.target) }); toast('Settings saved'); showSettings(); }); };
     if (isAdmin) renderStaff();
   }

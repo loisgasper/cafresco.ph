@@ -64,23 +64,39 @@
         <p class="small muted" style="margin:10px 0 0">${d.online ? 'You will get alerts while this page is open. Keep it open (or installed) on your phone.' : 'You are offline. Go online to see and accept jobs.'}</p>
         ${'Notification' in window && Notification.permission !== 'granted' ? '<button class="btn sm ghost" id="notif" style="margin-top:10px">Enable sound &amp; alerts</button>' : ''}
       </div>
+      ${d.base_rate !== null || d.rate_note ? `<div class="notice small">Your company starting rate: <b>${d.base_rate !== null ? peso(d.base_rate) : '—'}</b>${d.rate_note ? ' · ' + esc(d.rate_note) : ''}. Customers see this at checkout.</div>` : ''}
       <h2>My jobs</h2>
       ${d.mine.length ? d.mine.map((j) => jobCard(j, true)).join('') : '<div class="empty small" style="margin-bottom:18px">No active jobs.</div>'}
       <h2 style="margin-top:20px">Available jobs</h2>
-      ${d.online ? (d.available.length ? d.available.map((j) => jobCard(j, false)).join('') : '<div class="empty small">No jobs right now. We will alert you.</div>') : '<div class="empty small">Go online to see jobs.</div>'}
+      ${d.online ? (d.available.length ? d.available.map((j) => jobCard(j, false, d.base_rate)).join('') : '<div class="empty small">No jobs right now. We will alert you.</div>') : '<div class="empty small">Go online to see jobs.</div>'}
     </div>`;
     $('#tog').onclick = (e) => busy(e.target, async () => { await api('rider/online', { body: { online: !d.online } }); showJobs(); });
     const n = $('#notif');
     if (n) n.onclick = async () => { await Notification.requestPermission(); beep(); showJobs(); };
     $$('[data-act]').forEach((b) => b.onclick = () => busy(b, async () => {
-      await api(`rider/jobs/${b.dataset.id}/${b.dataset.act}`, { body: {} });
-      toast({ accept: 'Job accepted! Head to Cafresco.', pickup: 'Marked as picked up', deliver: 'Delivered. Thank you!' }[b.dataset.act]);
+      const body = {};
+      if (b.dataset.act === 'accept') {
+        const inp = $(`#fee${b.dataset.id}`);
+        if (!inp.reportValidity()) return;
+        body.fee = inp.value;
+      }
+      if (b.dataset.act === 'withdraw' && !confirm('Withdraw your offer? The job goes back to other riders.')) return;
+      await api(`rider/jobs/${b.dataset.id}/${b.dataset.act}`, { body });
+      toast({ accept: 'Rate sent! Waiting for the customer to accept.', withdraw: 'Offer withdrawn', pickup: 'Marked as picked up', deliver: 'Delivered. Thank you!' }[b.dataset.act]);
       showJobs();
     }));
+    // Keep a half-typed rate from being wiped by the 15-second refresh.
+    $$('.fee-in').forEach((i) => { i.oninput = () => { S.typing = Date.now(); }; });
   }
 
-  function jobCard(j, mine) {
-    const action = !mine ? `<button class="btn clay block" data-act="accept" data-id="${j.id}">Accept job</button>`
+  function jobCard(j, mine, baseRate) {
+    const min = baseRate !== null && baseRate !== undefined ? baseRate : 1;
+    const quote = `<div class="row" style="flex-wrap:nowrap;align-items:flex-end">
+        <label class="field" style="flex:1;margin:0"><span>Your delivery fee (₱)</span><input id="fee${j.id}" class="fee-in mono" type="number" inputmode="decimal" required min="${min}" max="3000" step="1" placeholder="${baseRate ? Math.round(baseRate) : 'e.g. 60'}"></label>
+        <button class="btn clay" data-act="accept" data-id="${j.id}" style="min-height:46px">Send rate</button></div>
+        <div class="small muted" style="margin-top:6px">The customer accepts or declines your rate. You get their name and number once they accept.</div>`;
+    const action = !mine ? quote
+      : j.quote_status === 'pending' ? `<div class="notice small" style="margin:0 0 8px">Rate sent: <b>${peso(j.rider_fee)}</b>. Waiting for the customer to accept.</div><button class="btn sm ghost" data-act="withdraw" data-id="${j.id}">Withdraw offer</button>`
       : j.status === 'ready' ? `<button class="btn clay block" data-act="pickup" data-id="${j.id}">I picked it up</button>`
       : j.status === 'out_for_delivery' ? `<button class="btn block" data-act="deliver" data-id="${j.id}">Delivered</button>`
       : ['confirmed', 'preparing'].includes(j.status) ? '<div class="notice small" style="margin:0">Being prepared. We will notify you when it is ready.</div>' : '';
@@ -90,8 +106,10 @@
       <div class="row small" style="justify-content:space-between;margin-bottom:10px">
         <span>${j.collect_from_customer ? `<span class="tag clay">Pay café ${peso(j.total)} at pickup</span>` : '<span class="tag ok">Prepaid via GCash</span>'}</span>
         <span class="muted">${j.pickup_time ? 'Ready at ' + fmtDate(j.pickup_time) : 'ASAP'}</span></div>
-      ${mine && j.delivery_address ? `<div class="notice small"><b>${esc(j.customer_name)}</b> · <a href="tel:${esc(j.customer_mobile)}">${esc(j.customer_mobile)}</a><br>${esc(j.delivery_address)}${j.note ? `<br>“${esc(j.note)}”` : ''}</div>` : ''}
-      ${!mine ? '<div class="small muted" style="margin-bottom:10px">Customer address shows after you accept.</div>' : ''}
+      ${mine && j.customer_name ? `<div class="notice small"><b>${esc(j.customer_name)}</b> · <a href="tel:${esc(j.customer_mobile)}">${esc(j.customer_mobile)}</a><br>${esc(j.delivery_address || '')}${j.note ? `<br>“${esc(j.note)}”` : ''}
+        ${j.delivery_lat !== null ? `<div style="margin-top:8px"><a class="btn sm" href="${CF.dirLink(j.delivery_lat, j.delivery_lng)}" target="_blank" rel="noopener">📍 Directions to GPS pin</a></div>` : ''}
+        ${j.rider_fee !== null ? `<div style="margin-top:6px">Agreed delivery fee: <b>${peso(j.rider_fee)}</b> (collect from customer)</div>` : ''}</div>` : ''}
+      ${!j.customer_name && j.delivery_address ? `<div class="small" style="margin-bottom:10px"><span class="label">Drop-off</span><br>${esc(j.delivery_address)}${j.distance_km !== null ? ` <span class="tag">≈ ${j.distance_km} km from café</span>` : ''}</div>` : ''}
       ${['completed', 'cancelled', 'rejected'].includes(j.status) ? '' : action}</div>`;
   }
 
@@ -106,7 +124,7 @@
     }
     if (!user.rider || user.rider.approval !== 'approved') return showPending();
     showJobs();
-    S.timer = setInterval(showJobs, 15000);
+    S.timer = setInterval(() => { if (Date.now() - (S.typing || 0) > 20000 || !$('.fee-in')) showJobs(); }, 15000);
   }
 
   window.addEventListener('hashchange', () => { if (!S.user) start(null); });

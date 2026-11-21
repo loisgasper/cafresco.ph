@@ -350,9 +350,11 @@ function admin_rider_company_save(): array
 {
     require_staff();
     $id = (int)in('id', 0);
-    $vals = [str_in('name', 120, true), str_in('contact', 120) ?: null, in('active', true) ? 1 : 0];
-    if ($id) q('UPDATE rider_companies SET name = ?, contact = ?, active = ? WHERE id = ?', [...$vals, $id]);
-    else q('INSERT INTO rider_companies (name, contact, active) VALUES (?, ?, ?)', $vals);
+    $rate = trim((string)in('base_rate', ''));
+    if ($rate !== '' && (!is_numeric($rate) || (float)$rate < 0 || (float)$rate > 5000)) fail(422, 'Starting rate must be a peso amount.');
+    $vals = [str_in('name', 120, true), str_in('contact', 120) ?: null, $rate === '' ? null : round((float)$rate, 2), str_in('rate_note', 200) ?: null, in('active', true) ? 1 : 0];
+    if ($id) q('UPDATE rider_companies SET name = ?, contact = ?, base_rate = ?, rate_note = ?, active = ? WHERE id = ?', [...$vals, $id]);
+    else q('INSERT INTO rider_companies (name, contact, base_rate, rate_note, active) VALUES (?, ?, ?, ?, ?)', $vals);
     return admin_riders();
 }
 
@@ -387,7 +389,7 @@ function admin_staff_save(): array
 
 const EDITABLE_SETTINGS = ['store_name', 'store_open', 'store_hours', 'store_address', 'store_phone', 'facebook_url', 'gcash_name', 'gcash_number', 'gcash_qr',
     'payment_window_minutes', 'points_per_peso', 'peso_per_point', 'min_points_redeem', 'max_redeem_percent', 'new_account_order_cap', 'max_open_orders',
-    'allow_pay_on_pickup', 'pay_on_pickup_min_completed', 'require_mobile_verification', 'min_prep_minutes', 'loyverse_token', 'banner_text'];
+    'allow_pay_on_pickup', 'pay_on_pickup_min_completed', 'require_mobile_verification', 'min_prep_minutes', 'loyverse_token', 'banner_text', 'store_lat', 'store_lng'];
 
 function admin_settings(): array
 {
@@ -407,6 +409,7 @@ function admin_settings_save(): array
         $v = trim((string)in($k));
         if ($k === 'loyverse_token' && ($u['role'] !== 'admin' || str_starts_with($v, '••••'))) continue;
         if ($u['role'] !== 'admin' && $k !== 'store_open') continue; // staff can only open/close the store
+        if (in_array($k, ['store_lat', 'store_lng'], true) && $v !== '' && (!is_numeric($v) || abs((float)$v) > ($k === 'store_lat' ? 90 : 180))) fail(422, 'Café map pin: enter latitude and longitude as numbers, e.g. 14.5995 and 120.9842.');
         set_setting($k, mb_substr($v, 0, 1000));
     }
     return admin_settings();

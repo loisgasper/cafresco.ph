@@ -20,7 +20,8 @@ MENU=$(get anon menu)
 PID=$(echo "$MENU" | php -r '$d=json_decode(stream_get_contents(STDIN),true); foreach($d["products"] as $p) if(str_contains($p["name"],"'$U'")) { echo $p["id"]." ".$p["variants"][1]["id"]." ".$p["addon_groups"][0]["addons"][0]["id"]; }')
 read PID VID AID <<<"$PID"; ok "menu has product $PID variant $VID addon $AID"
 post admin admin/discounts "{\"name\":\"Promo $U\",\"code\":\"SAVE$U\",\"type\":\"percent\",\"value\":10,\"active\":true}" >/dev/null && ok discount
-CO=$(post admin admin/rider-companies "{\"name\":\"Speedy $U\",\"active\":true}" | j companies.0.id)
+CO=$(post admin admin/rider-companies "{\"name\":\"Speedy $U\",\"base_rate\":\"50\",\"rate_note\":\"first 3 km\",\"active\":true}" | php -r '$d=json_decode(stream_get_contents(STDIN),true); foreach($d["companies"] as $c) if(str_contains($c["name"],"'$U'")) echo $c["id"];')
+get anon config | grep -q "Speedy $U" && ok "starting rate in public config"
 
 # customer
 post cust auth/register "{\"name\":\"Ana $U\",\"email\":\"ana$U@test.ph\",\"mobile\":\"0918${U}00\",\"password\":\"secret123\"}" | j user.id >/dev/null && ok customer registered
@@ -44,14 +45,24 @@ post rider rider/register "{\"company_id\":$CO,\"name\":\"Rider $U\",\"email\":\
 RID=$(get rider auth/me | j user.id)
 post admin "admin/riders/$RID" '{"approval":"approved"}' >/dev/null && ok rider approved
 post rider rider/online '{"online":true}' | j user.rider.is_online >/dev/null && ok rider online
-OID2=$(post cust orders "{\"items\":$ITEMS,\"fulfillment\":\"partner_rider\",\"payment_method\":\"pay_on_pickup\",\"delivery_address\":\"123 Rizal St, Brgy Uno\"}" | j order.id); ok "rider order $OID2 placed"
+OID2=$(post cust orders "{\"items\":$ITEMS,\"fulfillment\":\"partner_rider\",\"payment_method\":\"pay_on_pickup\",\"delivery_address\":\"123 Rizal St, Brgy Uno\",\"delivery_lat\":14.6,\"delivery_lng\":121.0}" | j order.id); ok "rider order $OID2 placed"
 post admin "admin/orders/$OID2/status" '{"status":"confirmed"}' >/dev/null
 get rider rider/jobs | j available | grep -q "\"id\":$OID2" && ok "rider sees available job"
-get rider rider/jobs | j available | grep -q '"delivery_address":null' && ok "address hidden before accept"
-post rider "rider/jobs/$OID2/accept" '{}' | j mine | grep -q 'Rizal' && ok "rider accepted, sees address"
+get rider rider/jobs | j available | grep -q '"customer_name":null' && ok "customer name hidden before rate accepted"
+post rider "rider/jobs/$OID2/accept" '{"fee":30}' | grep -q 'starting rate' && ok "rate below company starting rate refused"
+post rider "rider/jobs/$OID2/accept" '{"fee":80}' | j mine | grep -q '"quote_status":"pending"' && ok "rider sent rate 80"
+get cust orders/$OID2 | j order.rider_quote_status | grep -q pending && ok "customer sees pending offer"
+post rider "rider/jobs/$OID2/pickup" '{}' | grep -q 'accept your rate' && ok "pickup blocked until accepted"
+post cust "orders/$OID2/rider-quote" '{"accept":false}' | j order.declined_count | grep -q 1 && ok "customer declined"
+get rider rider/jobs | j available | grep -vq "\"id\":$OID2," && ok "declined rider no longer sees the job"
+post rider2 rider/register "{\"company_id\":$CO,\"name\":\"Rider2 $U\",\"email\":\"rider2$U@test.ph\",\"mobile\":\"0917${U}01\",\"password\":\"secret123\"}" >/dev/null
+RID2=$(get rider2 auth/me | j user.id); post admin "admin/riders/$RID2" '{"approval":"approved"}' >/dev/null; post rider2 rider/online '{"online":true}' >/dev/null
+post rider2 "rider/jobs/$OID2/accept" '{"fee":60}' >/dev/null && ok "second rider sent rate 60"
+post cust "orders/$OID2/rider-quote" '{"accept":true}' | j order.rider_quote_status | grep -q accepted && ok "customer accepted rate"
+get rider2 rider/jobs | j mine | grep -q "Ana $U" && ok "rider sees customer details after acceptance"
 post admin "admin/orders/$OID2/status" '{"status":"ready"}' >/dev/null
-post rider "rider/jobs/$OID2/pickup" '{}' >/dev/null && post rider "rider/jobs/$OID2/deliver" '{}' >/dev/null
+post rider2 "rider/jobs/$OID2/pickup" '{}' >/dev/null && post rider2 "rider/jobs/$OID2/deliver" '{}' >/dev/null
 [ "$(get cust orders/$OID2 | j order.status)" = completed ] && ok "delivered & completed"
-get cust notifications | grep -q 'Rider assigned' && ok "customer notified of rider"
+get cust notifications | grep -q 'Rider offer' && ok "customer notified of rider offer"
 R=$(curl -s -X POST -H 'Content-Type: application/json' -d '{}' "$B/auth/logout"); echo "$R" | grep -q 'Bad request origin' && ok "CSRF header enforced"
 echo "All smoke tests passed"

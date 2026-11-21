@@ -382,7 +382,7 @@
   }
 
   // ---------- Cart & checkout ----------
-  const co = { fulfillment: 'pickup', payment: 'gcash', code: '', points: 0, quote: null };
+  const co = { fulfillment: 'pickup', payment: 'gcash', code: '', points: 0, quote: null, pin: null };
 
   function showCart() {
     setNav('cart');
@@ -415,7 +415,11 @@
             </div>
             <div id="ffHelp" class="small muted" style="margin-bottom:12px"></div>
             <label class="field hidden" data-show="own_rider"><span>Rider name / company / plate (optional)</span><input id="ownRider" maxlength="200" placeholder="e.g. Juan, ABC Riders, plate 123"></label>
-            <label class="field hidden" data-show="partner_rider"><span>Delivery address</span><textarea id="addr" maxlength="500" placeholder="House no., street, barangay, landmark"></textarea></label>
+            <div class="hidden" data-show="partner_rider">
+              ${riderRatesNote()}
+              <label class="field"><span>Delivery address</span><textarea id="addr" maxlength="500" placeholder="House no., street, barangay, landmark"></textarea></label>
+              <div class="pinbox" id="pinBox"></div>
+            </div>
             <label class="field"><span>Ready time</span>
               <select id="when"><option value="">As soon as possible (~${S.cfg.min_prep_minutes || 15} min)</option><option value="later">Schedule for later…</option></select></label>
             <input type="datetime-local" id="whenAt" class="hidden" min="${local(minTime)}" value="${local(minTime)}" style="margin:-4px 0 14px">
@@ -438,7 +442,7 @@
             <div class="totals" id="totals"><div><span>Subtotal</span><span>${peso(Cart.total())}</span></div></div>
             <div id="coMsg"></div>
             <button class="btn clay block" id="place" style="margin-top:14px">${S.user ? 'Place order' : 'Log in to order'}</button>
-            <p class="small muted" style="margin:10px 0 0">Rider fees are paid directly to your rider.</p>
+            <p class="small muted" style="margin:10px 0 0" id="feeNote">Rider fees are paid directly to your rider.</p>
           </div>
         </div>
       </div></div>`;
@@ -459,16 +463,44 @@
     refreshQuote();
   }
 
+  function riderRatesNote() {
+    const rates = (S.cfg.rider_rates || []).filter((r) => r.base_rate !== null || r.note);
+    return `<div class="notice small rates">
+      <b>Rider fees are set by each rider company</b>
+      ${rates.length ? `<ul>${rates.map((r) => `<li><span>${esc(r.name)}</span><b>${r.base_rate !== null ? 'from ' + peso(r.base_rate).replace('.00', '') : ''}</b>${r.note ? `<small>${esc(r.note)}</small>` : ''}</li>`).join('')}</ul>` : ''}
+      <div>The rider who takes your order will send you their exact delivery fee. You can accept it, or decline and we'll look for another rider. The fee is paid directly to the rider, not to Cafresco.</div>
+    </div>`;
+  }
+
+  function renderPin() {
+    const box = $('#pinBox');
+    if (!box) return;
+    box.innerHTML = co.pin
+      ? `<div class="row small" style="justify-content:space-between"><span>📍 <b>Location pinned</b> (accurate to about ${co.pin.acc} m) · <a href="${CF.mapsLink(co.pin.lat, co.pin.lng)}" target="_blank" rel="noopener">check on Google Maps</a></span>
+         <span class="row"><button type="button" class="btn sm ghost" id="pinAgain">Pin again</button><button type="button" class="btn sm ghost" id="pinClear">Remove</button></span></div>`
+      : `<button type="button" class="btn sm ghost" id="pinMe">📍 Pin my exact location (optional)</button>
+         <div class="small muted" style="margin-top:6px">Sends your phone's GPS pin to the rider, so they can find you even if your street isn't on the map. Tap it while you're at the delivery spot.</div>`;
+    const pin = (b) => busy(b, async () => { co.pin = await CF.getPosition(); renderPin(); if (co.pin.acc > 150) toast('Pinned, but GPS is rough (' + co.pin.acc + ' m). Try again outdoors for a better pin.', true); });
+    if ($('#pinMe')) $('#pinMe').onclick = (e) => pin(e.currentTarget);
+    if ($('#pinAgain')) $('#pinAgain').onclick = (e) => pin(e.currentTarget);
+    if ($('#pinClear')) $('#pinClear').onclick = () => { co.pin = null; renderPin(); };
+  }
+
   function syncCheckout() {
+    renderPin();
     $$('[data-show]').forEach((el) => el.classList.toggle('hidden', el.dataset.show !== co.fulfillment));
     $('#ffHelp').textContent = {
       pickup: 'Pick up at the café when we mark your order ready.',
       own_rider: 'Book your own rider (Grab, Move It, local riders…). Show them your order code at pickup.',
-      partner_rider: 'We will alert our online partner riders. You will see who accepted your order.',
+      partner_rider: 'We will alert our online partner riders. A rider will send you their delivery fee to accept or decline.',
     }[co.fulfillment];
-    $('#pmHelp').innerHTML = co.payment === 'gcash'
+    $('#pmHelp').innerHTML = (co.payment === 'gcash'
       ? `After placing your order, send the total to our GCash and upload the screenshot within ${S.cfg.payment_window_minutes} minutes. We start preparing once we confirm it.`
-      : 'You or your rider pay in cash or GCash when picking up. Available after your first completed GCash order.';
+      : 'You or your rider pay in cash or GCash when picking up. Available after your first completed GCash order.')
+      + (co.payment === 'gcash' && co.fulfillment !== 'pickup'
+        ? '<div class="notice clay small" style="margin:10px 0 0"><b>Delivery fee not included.</b> Your GCash payment covers your food and drinks only. Pay the delivery fee directly to your rider.</div>' : '');
+    const fn = $('#feeNote');
+    if (fn) fn.textContent = co.fulfillment === 'pickup' ? 'No delivery fee for pickup.' : 'Delivery fee is not included in this total. You pay it directly to your rider.';
   }
 
   let quoteTimer = null;
@@ -515,6 +547,7 @@
     const body = {
       items: cartPayload(), fulfillment: co.fulfillment, payment_method: co.payment, discount_code: co.code, points: co.points,
       note: $('#note').value, delivery_address: $('#addr').value, own_rider_info: $('#ownRider').value,
+      delivery_lat: co.fulfillment === 'partner_rider' && co.pin ? co.pin.lat : null, delivery_lng: co.fulfillment === 'partner_rider' && co.pin ? co.pin.lng : null,
       pickup_time: $('#when').value === 'later' ? $('#whenAt').value : '',
     };
     await busy(btn, async () => {
@@ -557,6 +590,7 @@
       if (location.hash !== '#/orders/' + id) { clearInterval(orderPoll); return; }
       if (!first && $('#proofForm') && $('#proofForm').dataset.dirty) return; // don't wipe a half-filled form
       const stepIdx = { pending_payment: 0, payment_submitted: 0, pending_confirmation: 0, confirmed: 1, preparing: 1, ready: 2, out_for_delivery: 2, completed: 3 }[o.status];
+      const closed = ['completed', 'cancelled', 'rejected'].includes(o.status);
       const ffLabel = { pickup: 'Pickup at café', own_rider: 'Your own rider', partner_rider: 'Cafresco partner rider' }[o.fulfillment];
       view.innerHTML = `<div class="wrap" style="padding-top:24px;max-width:760px">
         <a href="#/orders" class="small">← All orders</a>
@@ -566,11 +600,24 @@
         ${o.status === 'payment_submitted' ? `<div class="notice"><b>Thanks! We're checking your GCash payment</b> (ref ${esc(o.gcash_ref)}). You'll get a notification once it's confirmed.</div>` : ''}
         ${o.status === 'pending_confirmation' ? '<div class="notice"><b>Waiting for the café to confirm your order.</b> Payment is on pickup.</div>' : ''}
         ${o.status === 'ready' && o.fulfillment !== 'partner_rider' ? `<div class="notice clay"><b>Your order is ready!</b> Show code <b class="mono">${esc(o.code)}</b> at pickup.</div>` : ''}
-        ${o.rider ? `<div class="panel"><div class="label">Your rider</div><b>${esc(o.rider.name)}</b> · ${esc(o.rider.company)}<div class="small">${esc(o.rider.vehicle || '')} ${o.rider.plate_no ? '· Plate ' + esc(o.rider.plate_no) : ''} · <a href="tel:${esc(o.rider.mobile)}">${esc(o.rider.mobile)}</a></div></div>` : ''}
-        ${o.fulfillment === 'partner_rider' && !o.rider && ['confirmed', 'preparing', 'ready'].includes(o.status) ? '<div class="notice small">Looking for an online partner rider… We will notify you when one accepts.</div>' : ''}
+        ${o.rider && o.rider_quote_status === 'pending' && !closed ? `<div class="panel shadow offer">
+          <div class="label">Rider offer · waiting for you</div>
+          <div class="row" style="justify-content:space-between;align-items:flex-end;margin:6px 0 4px">
+            <div><b style="font-size:1.1rem">${esc(o.rider.name)}</b><div class="small muted">${esc(o.rider.company)}${o.rider.vehicle ? ' · ' + esc(o.rider.vehicle) : ''}${o.rider.plate_no ? ' · Plate ' + esc(o.rider.plate_no) : ''}</div></div>
+            <div style="text-align:right"><div class="label">Delivery fee</div><b class="mono" style="font-size:1.6rem">${peso(o.rider_fee)}</b></div>
+          </div>
+          <p class="small muted" style="margin:6px 0 12px">You pay this fee directly to the rider${o.payment_method === 'gcash' ? '. It is not part of your GCash payment to Cafresco' : ''}.</p>
+          <div class="row"><button class="btn clay" id="quoteYes">Accept ${peso(o.rider_fee).replace('.00', '')}</button><button class="btn ghost" id="quoteNo">Decline, find another rider</button></div>
+        </div>` : ''}
+        ${o.rider && o.rider_quote_status === 'accepted' ? `<div class="panel"><div class="label">Your rider</div><b>${esc(o.rider.name)}</b> · ${esc(o.rider.company)}<div class="small">${esc(o.rider.vehicle || '')} ${o.rider.plate_no ? '· Plate ' + esc(o.rider.plate_no) : ''}${o.rider.mobile ? ` · <a href="tel:${esc(o.rider.mobile)}">${esc(o.rider.mobile)}</a>` : ''}</div>
+          ${o.rider_fee !== null ? `<div class="small" style="margin-top:6px">Delivery fee: <b>${peso(o.rider_fee)}</b>, paid directly to your rider.</div>` : ''}</div>` : ''}
+        ${o.fulfillment === 'partner_rider' && !o.rider && ['confirmed', 'preparing', 'ready'].includes(o.status) ? (o.declined_count
+          ? '<div class="notice small"><b>Looking for another rider.</b> This may take some time, since we wait for another online rider to send their rate. We will notify you as soon as one does.</div>'
+          : '<div class="notice small">Looking for an online partner rider… We will notify you when one sends their delivery fee.</div>') : ''}
+        ${o.fulfillment === 'partner_rider' && !closed && o.payment_method === 'gcash' ? '<p class="small muted" style="margin:-4px 0 14px">Your GCash payment covers the order only. The delivery fee is not included.</p>' : ''}
         <div class="panel">
           <div class="label">${esc(ffLabel)}${o.pickup_time ? ' · ' + fmtDate(o.pickup_time) : ' · ASAP'} · ${o.payment_method === 'gcash' ? 'GCash' : 'Pay on pickup'}</div>
-          ${o.delivery_address ? `<div class="small" style="margin-top:4px">Deliver to: ${esc(o.delivery_address)}</div>` : ''}
+          ${o.delivery_address ? `<div class="small" style="margin-top:4px">Deliver to: ${esc(o.delivery_address)}${o.delivery_lat !== null ? ` · <a href="${CF.mapsLink(o.delivery_lat, o.delivery_lng)}" target="_blank" rel="noopener">📍 GPS pin</a>` : ''}</div>` : ''}
           <div class="lines" style="margin-top:12px">${o.items.map((i) => `<div class="line"><div class="grow"><b>${i.qty}× ${esc(i.name)}</b>${i.variant_name ? ` · ${esc(i.variant_name)}` : ''}
             ${i.addons.length ? `<div class="small muted">+ ${esc(i.addons.map((a) => a.name).join(', '))}</div>` : ''}${i.note ? `<div class="small muted">“${esc(i.note)}”</div>` : ''}</div><div class="amt">${peso(i.line_total)}</div></div>`).join('')}</div>
           <div class="totals" style="margin-top:10px"><div><span>Subtotal</span><span>${peso(o.subtotal)}</span></div>
@@ -596,6 +643,9 @@
         $$('[data-copy]').forEach((b) => b.onclick = () => { navigator.clipboard?.writeText(b.dataset.copy); toast('Copied'); });
         startCountdown(o.pay_before);
       }
+      const qy = $('#quoteYes'), qn = $('#quoteNo');
+      if (qy) qy.onclick = () => busy(qy, async () => { await api('orders/' + id + '/rider-quote', { body: { accept: true } }); toast('Rider confirmed!'); render(true); });
+      if (qn) qn.onclick = () => { if (confirm('Decline this rate? We will look for another rider. This may take some time.')) busy(qn, async () => { await api('orders/' + id + '/rider-quote', { body: { accept: false } }); toast('Looking for another rider. This may take some time.'); render(true); }); };
       const cb = $('#cancelOrder');
       if (cb) cb.onclick = () => { if (confirm('Cancel this order?')) busy(cb, async () => { await api('orders/' + id + '/cancel', { body: {} }); toast('Order cancelled'); render(true); }); };
       if (['completed', 'cancelled', 'rejected'].includes(o.status)) clearInterval(orderPoll);
@@ -605,7 +655,7 @@
     orderPoll = setInterval(() => render(false), 15000);
   }
 
-  const eventLabel = (s) => ({ rider_assigned: 'Rider assigned', pending_payment: 'Order placed · waiting for payment', pending_confirmation: 'Order placed' }[s]
+  const eventLabel = (s) => ({ rider_assigned: 'Rider confirmed', rider_quote: 'Rider sent a delivery fee', rider_declined: 'Rider fee declined', rider_withdrew: 'Rider withdrew', pending_payment: 'Order placed · waiting for payment', pending_confirmation: 'Order placed' }[s]
     || { payment_submitted: 'Payment submitted', confirmed: 'Confirmed', preparing: 'Preparing', ready: 'Ready', out_for_delivery: 'On the way', completed: 'Completed', cancelled: 'Cancelled', rejected: 'Rejected' }[s] || s);
 
   function gcashPanel(o) {
@@ -613,6 +663,7 @@
     return `<div class="panel shadow" style="border-color:var(--clay)">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Pay with GCash</h2><span class="tag clay mono" id="countdown"></span></div>
       <p class="small muted" style="margin-top:6px">Send exactly <b>${peso(o.total)}</b>, then upload your receipt screenshot. Unpaid orders cancel automatically.</p>
+      ${o.fulfillment !== 'pickup' ? '<div class="notice clay small"><b>Delivery fee not included.</b> This amount is for your order only. Pay the delivery fee directly to your rider.</div>' : ''}
       <div class="grid2" style="align-items:center">
         <div>
           <div class="label">GCash name</div><div style="font-weight:800;margin-bottom:8px">${esc(c.gcash_name || 'Ask us on Facebook')}</div>

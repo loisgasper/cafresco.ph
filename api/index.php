@@ -33,6 +33,7 @@ $routes = [
     ['GET',  'orders/{id}',                  'order_get'],
     ['POST', 'orders/{id}/payment',          'order_payment'],
     ['POST', 'orders/{id}/cancel',           'order_cancel'],
+    ['POST', 'orders/{id}/rider-quote',      'order_rider_quote'],
     ['GET',  'files/proof/{id}',             'file_proof'],
     ['GET',  'points',                       'points_history'],
     ['GET',  'notifications',                'notifications_list'],
@@ -42,6 +43,7 @@ $routes = [
     ['POST', 'rider/online',                 'rider_online'],
     ['GET',  'rider/jobs',                   'rider_jobs'],
     ['POST', 'rider/jobs/{id}/accept',       'rider_accept'],
+    ['POST', 'rider/jobs/{id}/withdraw',     'rider_withdraw'],
     ['POST', 'rider/jobs/{id}/pickup',       'rider_pickup'],
     ['POST', 'rider/jobs/{id}/deliver',      'rider_deliver'],
     // admin / staff

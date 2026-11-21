@@ -226,9 +226,16 @@ function order_full(int $id, bool $forStaff = false): ?array
     unset($o['proof_file']);
     foreach (['subtotal', 'discount_total', 'points_value', 'total'] as $k) $o[$k] = (float)$o[$k];
     foreach (['id', 'user_id', 'points_redeemed', 'points_earned'] as $k) $o[$k] = (int)$o[$k];
+    $o['rider_fee'] = $o['rider_fee'] !== null ? (float)$o['rider_fee'] : null;
+    $o['declined_count'] = count(array_filter(explode(',', (string)$o['declined_riders'])));
+    unset($o['declined_riders']);
+    foreach (['delivery_lat', 'delivery_lng'] as $k) $o[$k] = $o[$k] !== null ? (float)$o[$k] : null;
     if ($o['rider_id']) {
-        $o['rider'] = q1('SELECT u.name, u.mobile, rp.plate_no, rp.vehicle, rc.name AS company FROM users u
+        $r = q1('SELECT u.name, u.mobile, rp.plate_no, rp.vehicle, rc.name AS company FROM users u
             JOIN rider_profiles rp ON rp.user_id = u.id JOIN rider_companies rc ON rc.id = rp.company_id WHERE u.id = ?', [$o['rider_id']]);
+        // Until the customer accepts, show who is offering but not their phone number.
+        if ($r && $o['rider_quote_status'] !== 'accepted' && !$forStaff) $r['mobile'] = null;
+        $o['rider'] = $r;
     }
     if ($forStaff) {
         $o['customer_completed_orders'] = (int)q1('SELECT COUNT(*) c FROM orders WHERE user_id = ? AND status = "completed"', [$o['user_id']])['c'];

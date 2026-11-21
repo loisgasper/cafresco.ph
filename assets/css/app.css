@@ -458,3 +458,11 @@ table.t tr.click:hover td { background-color: transparent; }
 .bakes-stack:hover img:nth-child(1) { transform: rotate(-12deg) translateX(-10px); }
 .bakes-stack:hover img:nth-child(3) { transform: rotate(14deg) translateX(10px); }
 @media (max-width: 760px) { .bakes-hero .wrap { grid-template-columns: 1fr; padding-top: 24px; padding-bottom: 20px; } .bakes-stack { display: none; } }
+
+/* Rider rates note at checkout */
+.rates ul { list-style: none; padding: 0; margin: 8px 0 10px; display: grid; gap: 6px; }
+.rates li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; background: var(--card); border-radius: var(--radius-sm); padding: 8px 12px; }
+.rates li span { flex: 1; font-weight: 700; }
+.rates li small { flex-basis: 100%; color: var(--ink-2); }
+.pinbox { margin: -4px 0 14px; }
+.offer { box-shadow: 0 0 0 2px var(--clay), var(--shadow-lg); }

@@ -21,9 +21,22 @@ function public_config(): array
         'allow_pay_on_pickup' => setting('allow_pay_on_pickup', '1') === '1',
         'min_prep_minutes' => (int)setting('min_prep_minutes', 15),
         'banner_text' => setting('banner_text', ''),
+        'store_lat' => is_numeric(setting('store_lat', '')) ? (float)setting('store_lat') : null,
+        'store_lng' => is_numeric(setting('store_lng', '')) ? (float)setting('store_lng') : null,
+        'rider_rates' => rider_rates_public(),
         'sms_enabled' => sms_enabled(),
         'require_mobile_verification' => require_mobile_verification(),
     ];
+}
+
+function rider_rates_public(): array
+{
+    try {
+        $rows = qall('SELECT name, base_rate, rate_note FROM rider_companies WHERE active = 1 ORDER BY base_rate IS NULL, base_rate, name');
+    } catch (Throwable $e) {
+        return []; // columns not migrated yet
+    }
+    return array_map(fn($r) => ['name' => $r['name'], 'base_rate' => $r['base_rate'] !== null ? (float)$r['base_rate'] : null, 'note' => $r['rate_note']], $rows);
 }
 
 function require_mobile_verification(): bool
@@ -226,6 +239,11 @@ function run_migrations(): void
     $has = fn(string $table, string $col) => (bool)q1('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col]);
     if (!$has('products', 'featured')) db()->exec('ALTER TABLE products ADD COLUMN featured TINYINT(1) NOT NULL DEFAULT 0 AFTER sold_out');
     if (!$has('products', 'drink_type')) db()->exec("ALTER TABLE products ADD COLUMN drink_type ENUM('coffee','non_coffee') NULL AFTER featured");
+    if (!$has('rider_companies', 'base_rate')) db()->exec('ALTER TABLE rider_companies ADD COLUMN base_rate DECIMAL(10,2) NULL AFTER contact, ADD COLUMN rate_note VARCHAR(200) NULL AFTER base_rate');
+    if (!$has('rider_profiles', 'lat')) db()->exec('ALTER TABLE rider_profiles ADD COLUMN lat DECIMAL(9,6) NULL, ADD COLUMN lng DECIMAL(9,6) NULL, ADD COLUMN loc_at DATETIME NULL');
+    if (!$has('orders', 'rider_fee')) db()->exec("ALTER TABLE orders ADD COLUMN delivery_lat DECIMAL(9,6) NULL AFTER own_rider_info, ADD COLUMN delivery_lng DECIMAL(9,6) NULL AFTER delivery_lat,
+        ADD COLUMN rider_fee DECIMAL(10,2) NULL AFTER rider_id, ADD COLUMN rider_quote_status ENUM('pending','accepted') NULL AFTER rider_fee,
+        ADD COLUMN rider_quote_at DATETIME NULL AFTER rider_quote_status, ADD COLUMN declined_riders VARCHAR(500) NULL AFTER rider_quote_at");
 }
 
 /**

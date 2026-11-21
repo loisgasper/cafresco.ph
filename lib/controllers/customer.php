@@ -105,6 +105,8 @@ function order_create(): array
     $address = str_in('delivery_address', 500);
     if ($fulfillment === 'partner_rider' && mb_strlen($address) < 8) fail(422, 'Please enter the delivery address for the rider.');
     $ownRider = str_in('own_rider_info', 200);
+    [$dLat, $dLng] = [in('delivery_lat'), in('delivery_lng')];
+    $hasPin = $fulfillment === 'partner_rider' && is_numeric($dLat) && is_numeric($dLng) && abs((float)$dLat) <= 90 && abs((float)$dLng) <= 180 && ((float)$dLat != 0 || (float)$dLng != 0);
 
     $pickupTime = null;
     $pt = trim((string)in('pickup_time', ''));
@@ -135,11 +137,12 @@ function order_create(): array
         }
         $code = new_order_code();
         $status = $payment === 'gcash' ? 'pending_payment' : 'pending_confirmation';
-        q('INSERT INTO orders (code, user_id, fulfillment, payment_method, status, subtotal, discount_id, discount_total, points_redeemed, points_value, total, pickup_time, customer_note, delivery_address, own_rider_info)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO orders (code, user_id, fulfillment, payment_method, status, subtotal, discount_id, discount_total, points_redeemed, points_value, total, pickup_time, customer_note, delivery_address, own_rider_info, delivery_lat, delivery_lng)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $code, $u['id'], $fulfillment, $payment, $status, $quote['subtotal'], $quote['discount']['id'] ?? null, $quote['discount_total'],
             $quote['points'], $quote['points_value'], $quote['total'], $pickupTime, str_in('note', 500) ?: null,
             $fulfillment === 'partner_rider' ? $address : null, $fulfillment === 'own_rider' ? ($ownRider ?: null) : null,
+            $hasPin ? round((float)$dLat, 6) : null, $hasPin ? round((float)$dLng, 6) : null,
         ]);
         $orderId = (int)$pdo->lastInsertId();
         foreach ($quote['lines'] as $l) {
@@ -213,6 +216,34 @@ function order_cancel(array $p): array
     $o = own_order($u, (int)$p['id']);
     if (!in_array($o['status'], ['pending_payment', 'pending_confirmation'], true)) fail(409, 'This order can no longer be cancelled online. Please message us on Facebook.');
     set_order_status($o['id'], 'cancelled', 'Cancelled by customer', (int)$u['id']);
+    return ['order' => order_full($o['id'])];
+}
+
+/** Customer accepts or declines the delivery rate a partner rider offered. */
+function order_rider_quote(array $p): array
+{
+    $u = require_user();
+    $o = own_order($u, (int)$p['id']);
+    if (!$o['rider_id'] || $o['rider_quote_status'] !== 'pending') fail(409, 'There is no rider offer waiting on this order.');
+    $riderId = (int)$o['rider_id'];
+    $fee = number_format((float)$o['rider_fee'], 2);
+    if (in('accept')) {
+        $ok = q("UPDATE orders SET rider_quote_status = 'accepted' WHERE id = ? AND rider_id = ? AND rider_quote_status = 'pending'", [$o['id'], $riderId])->rowCount();
+        if (!$ok) fail(409, 'This offer changed. Please refresh.');
+        log_order_event($o['id'], 'rider_assigned', "{$o['rider']['name']} ({$o['rider']['company']}) · delivery fee PHP $fee", (int)$u['id']);
+        notify_user($riderId, 'Rate accepted · ' . $o['code'], "The customer accepted your PHP $fee delivery fee. Head to Cafresco for pickup.", $o['id']);
+        notify_staff('Rider confirmed for ' . $o['code'], "{$o['rider']['name']} ({$o['rider']['company']}) · PHP $fee delivery", $o['id']);
+    } else {
+        $declined = array_filter(array_map('intval', explode(',', (string)q1('SELECT declined_riders FROM orders WHERE id = ?', [$o['id']])['declined_riders'])));
+        $declined[] = $riderId;
+        $declined = array_slice(array_values(array_unique($declined)), -60);
+        $ok = q("UPDATE orders SET rider_id = NULL, rider_fee = NULL, rider_quote_status = NULL, rider_quote_at = NULL, declined_riders = ? WHERE id = ? AND rider_id = ? AND rider_quote_status = 'pending'",
+            [implode(',', $declined), $o['id'], $riderId])->rowCount();
+        if (!$ok) fail(409, 'This offer changed. Please refresh.');
+        log_order_event($o['id'], 'rider_declined', "Declined PHP $fee from {$o['rider']['company']}. Looking for another rider.", (int)$u['id']);
+        notify_user($riderId, 'Rate declined · ' . $o['code'], 'The customer chose to look for another rider. Thanks for offering!', $o['id']);
+        notify_online_riders('Pickup job available', "Order {$o['code']} still needs a rider. Send your rate.", $o['id'], $declined);
+    }
     return ['order' => order_full($o['id'])];
 }
 
