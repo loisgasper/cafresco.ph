@@ -4,7 +4,7 @@ declare(strict_types=1);
 function menu(): array
 {
     $cats = qall('SELECT id, name FROM categories WHERE active = 1 ORDER BY sort, name');
-    $products = qall('SELECT id, category_id, name, description, image_url, base_price, sold_out FROM products WHERE active = 1 ORDER BY sort, name');
+    $products = qall('SELECT id, category_id, name, description, image_url, base_price, sold_out, featured FROM products WHERE active = 1 ORDER BY sort, name');
     $variants = qall('SELECT id, product_id, name, price FROM product_variants WHERE active = 1 ORDER BY sort, price');
     $groups = qall('SELECT g.id, g.name, g.min_select, g.max_select, pag.product_id FROM addon_groups g JOIN product_addon_groups pag ON pag.group_id = g.id');
     $addons = qall('SELECT id, group_id, name, price FROM addons WHERE active = 1 ORDER BY sort, name');
@@ -23,7 +23,7 @@ function menu(): array
         $out[] = [
             'id' => (int)$p['id'], 'category_id' => $p['category_id'] ? (int)$p['category_id'] : null,
             'name' => $p['name'], 'description' => $p['description'], 'image_url' => $p['image_url'],
-            'price' => (float)$p['base_price'], 'sold_out' => (bool)$p['sold_out'],
+            'price' => (float)$p['base_price'], 'sold_out' => (bool)$p['sold_out'], 'featured' => (bool)$p['featured'],
             'variants' => $varByProd[$p['id']] ?? [], 'addon_groups' => $groupsByProd[$p['id']] ?? [],
         ];
     }

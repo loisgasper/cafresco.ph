@@ -20,6 +20,7 @@ function public_config(): array
         'max_redeem_percent' => (int)setting('max_redeem_percent', 50),
         'allow_pay_on_pickup' => setting('allow_pay_on_pickup', '1') === '1',
         'min_prep_minutes' => (int)setting('min_prep_minutes', 15),
+        'banner_text' => setting('banner_text', ''),
         'sms_enabled' => sms_enabled(),
         'require_mobile_verification' => require_mobile_verification(),
     ];
@@ -202,12 +203,12 @@ function notifications_read(): array
  */
 function setup_install(): array
 {
-    $token = (string)config('setup_token', '');
-    if ($token === '' || !hash_equals($token, (string)in('setup_token', ''))) fail(403, 'Invalid setup token.');
+    require_setup_token();
     $sql = file_get_contents(APP_ROOT . '/sql/schema.sql');
     foreach (array_filter(array_map('trim', preg_split('/;\s*\n/', $sql))) as $stmt) {
         if (!preg_match('/^(--[^\n]*\n\s*)*$/', $stmt)) db()->exec($stmt);
     }
+    run_migrations();
     if (q1('SELECT id FROM users WHERE role = "admin" LIMIT 1')) return ['ok' => true, 'message' => 'Schema is up to date. An admin already exists.'];
     $email = strtolower(str_in('email', 190, true));
     $mobile = normalize_mobile(str_in('mobile', 20, true));
@@ -217,4 +218,52 @@ function setup_install(): array
     q('INSERT INTO users (role, name, email, mobile, password_hash, email_verified_at, mobile_verified_at) VALUES ("admin", ?, ?, ?, ?, ?, ?)',
         [str_in('name', 120) ?: 'Cafresco Admin', $email, $mobile, password_hash($pw, PASSWORD_DEFAULT), now(), now()]);
     return ['ok' => true, 'message' => 'Installed. You can now log in at /admin.'];
+}
+
+/** Small additive migrations for databases created by an older schema.sql. */
+function run_migrations(): void
+{
+    $has = fn(string $table, string $col) => (bool)q1('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col]);
+    if (!$has('products', 'featured')) db()->exec('ALTER TABLE products ADD COLUMN featured TINYINT(1) NOT NULL DEFAULT 0 AFTER sold_out');
+}
+
+function require_setup_token(): void
+{
+    $token = (string)config('setup_token', '');
+    if ($token === '' || !hash_equals($token, (string)in('setup_token', ''))) fail(403, 'Invalid setup token.');
+}
+
+/** Load the starter Cafresco menu. Only runs while the menu is still empty. */
+function setup_seed_menu(): array
+{
+    require_setup_token();
+    run_migrations();
+    if ((int)q1('SELECT COUNT(*) c FROM products')['c'] > 0) fail(409, 'The menu already has products. Nothing was changed.');
+    $menu = require APP_ROOT . '/sql/seed_menu.php';
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        q('INSERT INTO addon_groups (name, min_select, max_select) VALUES (?, 0, 6)', [$menu['addons']['name']]);
+        $gid = (int)$pdo->lastInsertId();
+        foreach ($menu['addons']['items'] as $i => [$n, $p]) q('INSERT INTO addons (group_id, name, price, sort) VALUES (?, ?, ?, ?)', [$gid, $n, $p, $i]);
+        $count = 0;
+        foreach ($menu['categories'] as $ci => $cat) {
+            q('INSERT INTO categories (name, sort) VALUES (?, ?)', [$cat['name'], $ci]);
+            $cid = (int)$pdo->lastInsertId();
+            foreach ($cat['items'] as $pi => [$name, $hot, $iced, $fav, $desc]) {
+                q('INSERT INTO products (category_id, name, description, base_price, featured, sort) VALUES (?, ?, ?, ?, ?, ?)', [$cid, $name, $desc, $iced ?? $hot, $fav ? 1 : 0, $pi]);
+                $pid = (int)$pdo->lastInsertId();
+                $vs = 0;
+                if ($hot !== null) q('INSERT INTO product_variants (product_id, name, price, sort) VALUES (?, "Hot", ?, ?)', [$pid, $hot, $vs++]);
+                if ($iced !== null) q('INSERT INTO product_variants (product_id, name, price, sort) VALUES (?, "Iced 16oz", ?, ?)', [$pid, $iced, $vs++]);
+                if (!empty($cat['addons'])) q('INSERT INTO product_addon_groups (product_id, group_id) VALUES (?, ?)', [$pid, $gid]);
+                $count++;
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return ['ok' => true, 'message' => "Loaded $count drinks."];
 }

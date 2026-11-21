@@ -1,7 +1,7 @@
 /* Cafresco customer app */
 (function () {
   'use strict';
-  const { api, esc, peso, $, $$, toast, modal, busy, formData, router, fmtDate, initials, systemNotify } = CF;
+  const { api, esc, peso, $, $$, toast, modal, busy, formData, router, fmtDate, systemNotify } = CF;
   const view = $('#view');
   const S = { user: null, cfg: {}, menu: null, cat: 'all', notifSince: 0 };
 
@@ -36,6 +36,7 @@
   const verified = () => S.user && S.user.email_verified && (!S.cfg.require_mobile_verification || S.user.mobile_verified);
 
   // ---------- Menu ----------
+  let rotTimer = null;
   async function showMenu() {
     setNav('menu');
     if (!S.menu) {
@@ -44,43 +45,90 @@
     }
     const m = S.menu;
     const cats = [{ id: 'all', name: 'All' }, ...m.categories];
-    const prods = m.products.filter((p) => S.cat === 'all' || p.category_id === Number(S.cat));
     const promo = m.promos[0];
+    const catOrder = (p) => { const i = m.categories.findIndex((c) => Number(c.id) === p.category_id); return i < 0 ? 99 : i; };
+    const favs = m.products.filter((p) => p.featured).sort((x, y) => catOrder(x) - catOrder(y)).map((p) => p.name);
+    const words = favs.length ? favs : ['Spanish Latte', 'Matcha', 'Biscoff', 'Cappuccino'];
+    const banner = (S.cfg.banner_text || '').split('·').map((t) => t.trim()).filter(Boolean);
+    if (promo) banner.unshift(`${promo.name} · ${promo.type === 'percent' ? Number(promo.value) + '% off' : peso(promo.value) + ' off'}`);
+    const bannerHtml = banner.length ? `<div class="marquee" aria-label="${esc(banner.join('. '))}"><div class="track" aria-hidden="true">${[...banner, ...banner, ...banner, ...banner].map((t) => `<span>${esc(t)}</span>`).join('')}</div></div>` : '';
+
+    // When "All" is selected, group drinks under their category headings.
+    const groups = S.cat === 'all'
+      ? [...m.categories.map((c) => ({ name: c.name, items: m.products.filter((p) => p.category_id === Number(c.id)) })),
+         { name: 'More', items: m.products.filter((p) => !p.category_id || !m.categories.some((c) => Number(c.id) === p.category_id)) }].filter((g) => g.items.length)
+      : [{ name: null, items: m.products.filter((p) => p.category_id === Number(S.cat)) }];
+
     view.innerHTML = `
-      <section class="hero concrete"><div class="wrap">
+      ${bannerHtml}
+      <section class="hero warm"><div class="wrap">
+        <svg class="steam" viewBox="0 0 120 150" aria-hidden="true"><path d="M30 140 C10 110 50 90 30 60 S40 20 30 5"/><path d="M60 140 C40 110 80 90 60 60 S70 20 60 5"/><path d="M90 140 C70 110 110 90 90 60 S100 20 90 5"/></svg>
         <div>
           <div class="label">Pickup · Takeout · Partner riders</div>
-          <h1>Fresh from<br>our home café.</h1>
-          <p class="muted" style="max-width:34ch">Order ahead, pay with GCash, and grab it when it's ready. Members earn points on every online order.</p>
+          <h1>Your <span class="rotator" id="rot">${esc(words[0])}</span><br>is a tap away.</h1>
+          <p style="max-width:36ch;color:var(--ink-2)">Order ahead from our home café, pay with GCash, and grab it when it's ready. Members earn points on every online order.</p>
           ${!S.cfg.store_open ? '<div class="notice bad"><b>We are closed for online orders right now.</b> You can still browse the menu.</div>' : ''}
         </div>
         <div class="stamp">
-          <div class="label">Today</div>
+          <div class="label">Open</div>
           <div style="font-weight:800;font-size:1.1rem">${esc(S.cfg.store_hours || '')}</div>
           ${S.cfg.store_address ? `<div class="small muted">${esc(S.cfg.store_address)}</div>` : ''}
-          ${promo ? `<div class="tag clay" style="margin-top:10px">${esc(promo.name)} · ${promo.type === 'percent' ? Number(promo.value) + '% off' : peso(promo.value) + ' off'}</div>` : ''}
-          ${S.user ? `<div style="margin-top:10px" class="mono small">${esc(S.user.name.split(' ')[0])} · <b>${S.user.points}</b> pts</div>` : '<a class="btn sm" style="margin-top:12px" href="#/register">Join &amp; earn points</a>'}
+          ${S.user ? `<div style="margin-top:10px" class="mono small">${esc(S.user.name.split(' ')[0])} · <b>${S.user.points}</b> pts</div>` : '<a class="btn sm clay" style="margin-top:12px" href="#/register">Join &amp; earn points</a>'}
+          <div class="small muted" style="margin-top:10px"><span style="color:var(--clay)">✿</span> = customer favorite</div>
         </div>
       </div></section>
       <div class="wrap">
         ${verifyBanner()}
         <div class="cats" role="tablist">${cats.map((c) => `<button data-cat="${c.id}" class="${String(S.cat) === String(c.id) ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div>
-        ${prods.length ? `<div class="menu-grid">${prods.map(productCard).join('')}</div>` : '<div class="empty" style="margin-top:20px">No items here yet.</div>'}
+        ${groups.some((g) => g.items.length) ? groups.map((g) => `
+          ${g.name ? `<div class="cat-title"><h2>${esc(g.name)}</h2><span class="label">${g.items.length} drinks</span></div>` : ''}
+          <div class="menu-list">${g.items.map(drinkCard).join('')}</div>`).join('') : '<div class="empty" style="margin-top:20px">No items here yet.</div>'}
       </div>
+      ${coffeeGuide()}
       ${footer()}`;
     $$('[data-cat]').forEach((b) => b.onclick = () => { S.cat = b.dataset.cat; showMenu(); });
     $$('[data-pid]').forEach((b) => b.onclick = () => openProduct(Number(b.dataset.pid)));
     $$('[data-resend]').forEach((b) => b.onclick = () => resendEmail(b));
+    clearInterval(rotTimer);
+    let i = 0;
+    rotTimer = setInterval(() => {
+      const el = $('#rot');
+      if (!el) { clearInterval(rotTimer); return; }
+      i = (i + 1) % words.length;
+      el.textContent = words[i];
+      el.classList.toggle('swap', false);
+      void el.offsetWidth;
+      el.classList.toggle('swap', true);
+    }, 2600);
   }
 
-  function productCard(p) {
-    const from = p.variants.length ? Math.min(...p.variants.map((v) => v.price)) : p.price;
-    return `<button class="product${p.sold_out ? ' soldout' : ''}" data-pid="${p.id}" ${p.sold_out ? 'disabled' : ''}>
-      <div class="img">${p.image_url ? `<img src="${esc(p.image_url)}" alt="" loading="lazy">` : esc(initials(p.name))}</div>
-      <div class="body"><div class="name">${esc(p.name)}</div>
+  function drinkCard(p) {
+    const prices = p.variants.length
+      ? p.variants.map((v) => `<span><small>${esc(v.name)}</small><b>${peso(v.price).replace('.00', '')}</b></span>`).join('')
+      : `<span><b>${peso(p.price).replace('.00', '')}</b></span>`;
+    return `<button class="drink${p.sold_out ? ' soldout' : ''}" data-pid="${p.id}" ${p.sold_out ? 'disabled' : ''}>
+      <div class="info">
+        <div class="name">${p.featured ? '<span class="fav" title="Customer favorite">✿</span>' : ''}${esc(p.name)} ${p.sold_out ? '<span class="tag">Sold out</span>' : ''}</div>
         ${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}
-        <div class="price">${p.variants.length > 1 ? 'from ' : ''}${peso(from)} ${p.sold_out ? '<span class="tag">Sold out</span>' : ''}</div></div>
+        <div class="prices">${prices}</div>
+      </div>
+      ${p.sold_out ? '' : '<span class="plus" aria-hidden="true">+</span>'}
     </button>`;
+  }
+
+  function coffeeGuide() {
+    const items = [
+      ['Americano', 'Espresso softened with hot or iced water. Clean, bold, and quietly strong.'],
+      ['Latte', 'Espresso blended with steamed or iced milk. Smooth, creamy, and comforting in every sip.'],
+      ['Cappuccino', 'Espresso with steamed or iced milk and a cloud of foam. Rich, airy, and perfectly balanced.'],
+      ['Flavored Lattes', 'Espresso, milk, and a touch of your chosen flavor. Familiar, comforting, and easy to enjoy.'],
+    ];
+    return `<section class="guide"><div class="wrap">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <h2 class="script">A Little Coffee Guide</h2><span class="note">You can ask for sugar! ♡</span>
+      </div>
+      <div class="guide-grid">${items.map(([t, d]) => `<div class="guide-card"><h3>${t}</h3><p>${d}</p></div>`).join('')}</div>
+    </div></section>`;
   }
 
   function verifyBanner() {
@@ -102,7 +150,6 @@
     if (!p) return;
     let qty = 1;
     const html = `
-      ${p.image_url ? `<img src="${esc(p.image_url)}" alt="" style="width:100%;aspect-ratio:16/10;object-fit:cover;border:2px solid var(--ink);margin-bottom:14px">` : ''}
       ${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}
       <form id="pform">
         ${p.variants.length ? `<div class="label" style="margin:8px 0">Choose one</div>

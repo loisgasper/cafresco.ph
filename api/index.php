@@ -11,6 +11,7 @@ $routes = [
     ['GET',  'files/public/{name}',          'file_public'],
     ['GET',  'rider/companies',              'rider_companies_public'],
     ['POST', 'setup',                        'setup_install'],
+    ['POST', 'setup/seed-menu',              'setup_seed_menu'],
     // auth
     ['GET',  'auth/me',                      'auth_me'],
     ['POST', 'auth/register',                'auth_register'],

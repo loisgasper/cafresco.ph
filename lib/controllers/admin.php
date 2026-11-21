@@ -145,15 +145,15 @@ function admin_product_save(): array
     $price = money(in('base_price', 0));
     if ($price < 0) fail(422, 'Price cannot be negative.');
     $vals = [$cat, str_in('name', 120, true), str_in('description', 500) ?: null, str_in('image_url', 500) ?: null, $price,
-        in('active', true) ? 1 : 0, in('sold_out', false) ? 1 : 0, (int)in('sort', 0)];
+        in('active', true) ? 1 : 0, in('sold_out', false) ? 1 : 0, in('featured', false) ? 1 : 0, (int)in('sort', 0)];
     $pdo = db();
     $pdo->beginTransaction();
     try {
         if ($id) {
             if (!q1('SELECT id FROM products WHERE id = ?', [$id])) fail(404, 'Product not found');
-            q('UPDATE products SET category_id = ?, name = ?, description = ?, image_url = ?, base_price = ?, active = ?, sold_out = ?, sort = ? WHERE id = ?', [...$vals, $id]);
+            q('UPDATE products SET category_id = ?, name = ?, description = ?, image_url = ?, base_price = ?, active = ?, sold_out = ?, featured = ?, sort = ? WHERE id = ?', [...$vals, $id]);
         } else {
-            q('INSERT INTO products (category_id, name, description, image_url, base_price, active, sold_out, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', $vals);
+            q('INSERT INTO products (category_id, name, description, image_url, base_price, active, sold_out, featured, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', $vals);
             $id = (int)$pdo->lastInsertId();
         }
         $keep = [];
@@ -387,7 +387,7 @@ function admin_staff_save(): array
 
 const EDITABLE_SETTINGS = ['store_name', 'store_open', 'store_hours', 'store_address', 'store_phone', 'facebook_url', 'gcash_name', 'gcash_number', 'gcash_qr',
     'payment_window_minutes', 'points_per_peso', 'peso_per_point', 'min_points_redeem', 'max_redeem_percent', 'new_account_order_cap', 'max_open_orders',
-    'allow_pay_on_pickup', 'pay_on_pickup_min_completed', 'require_mobile_verification', 'min_prep_minutes', 'loyverse_token'];
+    'allow_pay_on_pickup', 'pay_on_pickup_min_completed', 'require_mobile_verification', 'min_prep_minutes', 'loyverse_token', 'banner_text'];
 
 function admin_settings(): array
 {

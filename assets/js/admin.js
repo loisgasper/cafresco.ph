@@ -175,7 +175,7 @@
       <button class="btn sm clay" id="newP">+ New product</button></div>
       <input id="filter" placeholder="Search products" style="margin-bottom:14px;max-width:360px">
       <div class="tablewrap"><table class="t"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Options</th><th>Status</th><th></th></tr></thead><tbody>
-      ${c.products.map((p) => `<tr data-name="${esc(p.name.toLowerCase())}"><td><b>${esc(p.name)}</b>${p.loyverse_id ? ' <span class="tag">Loyverse</span>' : ''}</td><td>${esc(catName(p.category_id))}</td>
+      ${c.products.map((p) => `<tr data-name="${esc(p.name.toLowerCase())}"><td>${Number(p.featured) ? '<span style="color:var(--clay)">✿</span> ' : ''}<b>${esc(p.name)}</b>${p.loyverse_id ? ' <span class="tag">Loyverse</span>' : ''}</td><td>${esc(catName(p.category_id))}</td>
         <td class="mono">${p.variants.length ? p.variants.map((v) => `${esc(v.name)} ${peso(v.price)}`).join('<br>') : peso(p.base_price)}</td>
         <td class="small">${p.addon_group_ids.map((g) => esc(c.addon_groups.find((x) => Number(x.id) === g)?.name || '')).join(', ') || '—'}</td>
         <td><button class="btn sm ${Number(p.active) ? 'ghost' : 'danger'}" data-toggle="${p.id}" data-field="active">${Number(p.active) ? 'Visible' : 'Hidden'}</button>
@@ -219,7 +219,8 @@
       <div class="label" style="margin:16px 0 8px">Add-on groups</div>
       ${c.addon_groups.length ? c.addon_groups.map((g) => `<label class="check"><input type="checkbox" name="g_${g.id}" ${p.addon_group_ids.includes(Number(g.id)) ? 'checked' : ''}> ${esc(g.name)} <span class="price small">${g.addons.length} options</span></label>`).join('') : '<p class="small muted">No add-on groups yet. Create them under Add-ons.</p>'}
       <div class="row" style="margin-top:16px"><label class="row small"><input type="checkbox" name="active" ${Number(p.active) ? 'checked' : ''}> Visible on menu</label>
-      <label class="row small"><input type="checkbox" name="sold_out" ${Number(p.sold_out) ? 'checked' : ''}> Sold out</label></div>
+      <label class="row small"><input type="checkbox" name="sold_out" ${Number(p.sold_out) ? 'checked' : ''}> Sold out</label>
+      <label class="row small"><input type="checkbox" name="featured" ${Number(p.featured) ? 'checked' : ''}> ✿ Customer favorite</label></div>
     </form>`, { wide: true, footer: `${p.id ? '<button class="btn danger" id="delP">Delete</button>' : ''}<span style="flex:1"></span><button class="btn clay" id="saveP">Save product</button>` });
     wireRows($('#vars', m.el), $('#addVar', m.el));
     $('#img', m.el).onchange = (e) => busy(null, async () => {
@@ -232,7 +233,7 @@
       const d = formData(f);
       const body = {
         id: p.id || null, name: d.name, category_id: d.category_id || null, description: d.description, base_price: Number(d.base_price || 0), sort: Number(d.sort || 0),
-        image_url: d.image_url, active: d.active, sold_out: d.sold_out, variants: readRows($('#vars', m.el)),
+        image_url: d.image_url, active: d.active, sold_out: d.sold_out, featured: d.featured, variants: readRows($('#vars', m.el)),
         addon_group_ids: c.addon_groups.filter((g) => d['g_' + g.id]).map((g) => Number(g.id)),
       };
       await api('admin/products', { body }); toast('Saved'); m.close(); showMenu();
@@ -405,7 +406,8 @@
     main().innerHTML = `<div class="toolbar"><h1>Settings</h1></div>
       ${isAdmin ? '' : '<div class="notice">Only the owner (admin) can change settings.</div>'}
       <form id="sf">
-      <div class="panel"><h2>Store</h2><div class="grid2">${f('store_name', 'Store name')}${f('store_hours', 'Hours shown to customers')}${f('store_address', 'Address')}${f('store_phone', 'Phone')}${f('facebook_url', 'Facebook page URL', 'url')}${f('min_prep_minutes', 'Minimum prep time (minutes)', 'number')}</div></div>
+      <div class="panel"><h2>Store</h2><div class="grid2">${f('store_name', 'Store name')}${f('store_hours', 'Hours shown to customers')}${f('store_address', 'Address')}${f('store_phone', 'Phone')}${f('facebook_url', 'Facebook page URL', 'url')}${f('min_prep_minutes', 'Minimum prep time (minutes)', 'number')}</div>
+        ${f('banner_text', 'Moving banner text (separate messages with ·)', 'text', 'maxlength="600"')}</div>
       <div class="panel"><h2>GCash</h2><div class="grid2">${f('gcash_name', 'Account name')}${f('gcash_number', 'GCash number')}</div>
         <label class="field"><span>GCash QR image</span><div class="row" style="flex-wrap:nowrap">${f('gcash_qr', '').replace(/<label class="field"><span><\/span>|<\/label>/g, '')}${isAdmin ? '<input type="file" id="qrUp" accept="image/*" style="max-width:130px">' : ''}</div></label>
         ${s.gcash_qr ? `<img src="${esc(s.gcash_qr)}" alt="QR" style="max-width:160px;border:2px solid var(--ink)">` : ''}

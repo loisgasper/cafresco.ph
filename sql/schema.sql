@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS products (
   base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
   active TINYINT(1) NOT NULL DEFAULT 1,
   sold_out TINYINT(1) NOT NULL DEFAULT 0,
+  featured TINYINT(1) NOT NULL DEFAULT 0,
   sort INT NOT NULL DEFAULT 0,
   loyverse_id VARCHAR(64) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -252,4 +253,5 @@ INSERT IGNORE INTO settings (k, v) VALUES
  ('pay_on_pickup_min_completed', '1'),
  ('require_mobile_verification', '0'),
  ('min_prep_minutes', '15'),
- ('loyverse_token', '');
+ ('loyverse_token', ''),
+ ('banner_text', 'Fresh from our home café · Order ahead, skip the wait · Pay with GCash · Earn points on every online order');
