@@ -97,7 +97,8 @@ function order_create(): array
     if (!in_array($payment, ['gcash', 'pay_on_pickup'], true)) fail(422, 'Choose a payment method.');
 
     $completed = completed_orders((int)$u['id']);
-    if ($payment === 'pay_on_pickup') {
+    $trusted = !empty($u['trusted']);
+    if ($payment === 'pay_on_pickup' && !$trusted) {
         if (setting('allow_pay_on_pickup', '1') !== '1') fail(422, 'Pay on pickup is not available right now. Please pay with GCash.');
         if ($completed < (int)setting('pay_on_pickup_min_completed', 1)) fail(422, 'Pay on pickup unlocks after your first completed GCash order.');
     }
@@ -120,7 +121,7 @@ function order_create(): array
 
     $quote = build_quote($u);
     $cap = (float)setting('new_account_order_cap', 1500);
-    if ($completed === 0 && $cap > 0 && $quote['total'] > $cap) {
+    if (!$trusted && $completed === 0 && $cap > 0 && $quote['total'] > $cap) {
         fail(422, 'For your first online order, the limit is PHP ' . number_format($cap, 2) . '. Bigger orders unlock after your first completed order.');
     }
 

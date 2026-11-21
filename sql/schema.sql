@@ -12,12 +12,26 @@ CREATE TABLE IF NOT EXISTS users (
   mobile_verified_at DATETIME NULL,
   status ENUM('active','blocked') NOT NULL DEFAULT 'active',
   points_balance INT NOT NULL DEFAULT 0,
+  facebook_url VARCHAR(255) NULL,
+  trusted TINYINT(1) NOT NULL DEFAULT 0,
   staff_note VARCHAR(500) NULL,
   last_login_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_email (email),
   UNIQUE KEY uq_mobile (mobile),
   KEY idx_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS support_messages (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  sender_id INT UNSIGNED NULL,
+  from_staff TINYINT(1) NOT NULL DEFAULT 0,
+  body TEXT NOT NULL,
+  seen_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_sm_user (user_id, id),
+  KEY idx_sm_unseen (from_staff, seen_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS verification_tokens (

@@ -68,11 +68,25 @@ function create_account(string $role): array
     validate_password($pw);
     if (q1('SELECT id FROM users WHERE email = ?', [$email])) fail(409, 'An account with this email already exists.');
     if (q1('SELECT id FROM users WHERE mobile = ?', [$mobile])) fail(409, 'An account with this mobile number already exists.');
-    q('INSERT INTO users (role, name, email, mobile, password_hash) VALUES (?, ?, ?, ?, ?)',
-        [$role, $name, $email, $mobile, password_hash($pw, PASSWORD_DEFAULT)]);
+    $fb = facebook_url_in();
+    q('INSERT INTO users (role, name, email, mobile, password_hash, facebook_url) VALUES (?, ?, ?, ?, ?, ?)',
+        [$role, $name, $email, $mobile, password_hash($pw, PASSWORD_DEFAULT), $fb]);
     $u = q1('SELECT * FROM users WHERE id = ?', [db()->lastInsertId()]);
     send_verification_email($u);
     return $u;
+}
+
+/** Optional Facebook profile link. Accepts facebook.com / fb.com / m.me links or a bare username. */
+function facebook_url_in(): ?string
+{
+    $raw = trim(str_in('facebook_url', 255));
+    if ($raw === '') return null;
+    if (preg_match('/^[A-Za-z0-9.]{5,50}$/', $raw)) return 'https://www.facebook.com/' . $raw;
+    if (!preg_match('~^(https?://)?([a-z0-9-]+\.)?(facebook\.com|fb\.com|fb\.me|m\.me)/\S+$~i', $raw)) {
+        fail(422, 'Please paste your Facebook profile link (for example https://www.facebook.com/yourname).');
+    }
+    $url = preg_match('~^https?://~i', $raw) ? $raw : 'https://' . $raw;
+    return mb_substr(preg_replace('~^http://~i', 'https://', $url), 0, 255);
 }
 
 function auth_register(): array
@@ -185,6 +199,7 @@ function auth_profile(): array
     $u = require_user();
     $name = str_in('name', 120, true);
     q('UPDATE users SET name = ? WHERE id = ?', [$name, $u['id']]);
+    if (array_key_exists('facebook_url', input())) q('UPDATE users SET facebook_url = ? WHERE id = ?', [facebook_url_in(), $u['id']]);
     $new = (string)in('new_password', '');
     if ($new !== '') {
         if (!password_verify((string)in('current_password', ''), $u['password_hash'])) fail(422, 'Current password is wrong.');
@@ -200,7 +215,7 @@ function notifications_list(): array
     $since = (int)($_GET['since'] ?? 0);
     $rows = qall('SELECT id, order_id, title, body, read_at, created_at FROM notifications WHERE user_id = ? AND id > ? ORDER BY id DESC LIMIT 30', [$u['id'], $since]);
     $unread = (int)q1('SELECT COUNT(*) c FROM notifications WHERE user_id = ? AND read_at IS NULL', [$u['id']])['c'];
-    return ['items' => $rows, 'unread' => $unread];
+    return ['items' => $rows, 'unread' => $unread, 'chat_unread' => in_array($u['role'], ['customer', 'rider'], true) ? chat_unread_for((int)$u['id']) : 0];
 }
 
 function notifications_read(): array
@@ -244,6 +259,12 @@ function run_migrations(): void
     if (!$has('orders', 'rider_fee')) db()->exec("ALTER TABLE orders ADD COLUMN delivery_lat DECIMAL(9,6) NULL AFTER own_rider_info, ADD COLUMN delivery_lng DECIMAL(9,6) NULL AFTER delivery_lat,
         ADD COLUMN rider_fee DECIMAL(10,2) NULL AFTER rider_id, ADD COLUMN rider_quote_status ENUM('pending','accepted') NULL AFTER rider_fee,
         ADD COLUMN rider_quote_at DATETIME NULL AFTER rider_quote_status, ADD COLUMN declined_riders VARCHAR(500) NULL AFTER rider_quote_at");
+    if (!$has('users', 'facebook_url')) db()->exec('ALTER TABLE users ADD COLUMN facebook_url VARCHAR(255) NULL AFTER points_balance, ADD COLUMN trusted TINYINT(1) NOT NULL DEFAULT 0 AFTER facebook_url');
+    db()->exec('CREATE TABLE IF NOT EXISTS support_messages (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, sender_id INT UNSIGNED NULL,
+      from_staff TINYINT(1) NOT NULL DEFAULT 0, body TEXT NOT NULL, seen_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_sm_user (user_id, id), KEY idx_sm_unseen (from_staff, seen_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
     // Riders assigned before rate offers existed count as accepted, so they can still pick up.
     q("UPDATE orders SET rider_quote_status = 'accepted' WHERE rider_id IS NOT NULL AND rider_quote_status IS NULL");
 }

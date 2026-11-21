@@ -64,5 +64,23 @@ post admin "admin/orders/$OID2/status" '{"status":"ready"}' >/dev/null
 post rider2 "rider/jobs/$OID2/pickup" '{}' >/dev/null && post rider2 "rider/jobs/$OID2/deliver" '{}' >/dev/null
 [ "$(get cust orders/$OID2 | j order.status)" = completed ] && ok "delivered & completed"
 get cust notifications | grep -q 'Rider offer' && ok "customer notified of rider offer"
+# facebook link, trusted customer, support chat
+post cust3 auth/register "{\"name\":\"Bea $U\",\"email\":\"bea$U@test.ph\",\"mobile\":\"0916${U}02\",\"password\":\"secret123\",\"facebook_url\":\"facebook.com/bea.$U\"}" | j user.facebook_url | grep -q 'https://facebook.com/bea' && ok "facebook link saved"
+post cust3 auth/register "{\"name\":\"X\",\"email\":\"x$U@test.ph\",\"mobile\":\"0915${U}03\",\"password\":\"secret123\",\"facebook_url\":\"http://evil.example/x\"}" | grep -q 'Facebook profile link' && ok "non-facebook link refused"
+CID3=$(get cust3 auth/me | j user.id)
+post admin "admin/customers/$CID3" '{"verify_email":true}' >/dev/null
+post cust3 orders "{\"items\":$ITEMS,\"fulfillment\":\"pickup\",\"payment_method\":\"pay_on_pickup\"}" | grep -q 'unlocks after' && ok "untrusted new customer must pay GCash first"
+post admin "admin/customers/$CID3" '{"trusted":true}' >/dev/null
+get cust3 auth/me | j user.trusted | grep -q 1 && ok "customer marked trusted"
+post cust3 orders "{\"items\":$ITEMS,\"fulfillment\":\"pickup\",\"payment_method\":\"pay_on_pickup\"}" | j order.status | grep -q pending_confirmation && ok "trusted customer can pay on pickup"
+post cust3 chat '{"body":"Hi! Is the banana cake available today?"}' | j messages | grep -q 'banana cake' && ok "customer sent chat"
+get admin admin/chats | j threads | grep -q "Bea $U" && ok "admin inbox shows thread"
+get admin admin/feed | j chat_unread | grep -qv '^0$' && ok "admin feed counts unread chats"
+get cust3 'chat?peek=1' | j unread | grep -q '^0$' && ok "no unread replies yet"
+post admin "admin/chats/$CID3" '{"body":"Yes! Fresh batch at 3pm."}' >/dev/null && ok "admin replied"
+get cust3 'chat?peek=1' | j unread | grep -q '^1$' && ok "customer sees 1 unread reply"
+get cust3 chat | j messages | grep -q 'Fresh batch' && ok "customer reads reply"
+get cust3 'chat?peek=1' | j unread | grep -q '^0$' && ok "reply marked seen"
+post rider2 chat '{"body":"Rider here, gate code?"}' | j messages | grep -q 'gate code' && ok "rider can chat too"
 R=$(curl -s -X POST -H 'Content-Type: application/json' -d '{}' "$B/auth/logout"); echo "$R" | grep -q 'Bad request origin' && ok "CSRF header enforced"
 echo "All smoke tests passed"

@@ -74,6 +74,8 @@ function user_public(?array $u): ?array
         'email_verified' => $u['email_verified_at'] !== null,
         'mobile_verified' => $u['mobile_verified_at'] !== null,
         'points' => (int)$u['points_balance'],
+        'facebook_url' => $u['facebook_url'] ?? null,
+        'trusted' => (bool)($u['trusted'] ?? false),
     ];
     if ($u['role'] === 'rider') {
         $rp = q1('SELECT rp.*, rc.name AS company_name FROM rider_profiles rp JOIN rider_companies rc ON rc.id = rp.company_id WHERE rp.user_id = ?', [$u['id']]);

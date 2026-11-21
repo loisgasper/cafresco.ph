@@ -18,14 +18,14 @@
 
   // ---------- Shell ----------
   const NAV = [
-    ['live', 'Live orders'], ['orders', 'Order history'], ['menu', 'Products'], ['addons', 'Add-ons'], ['discounts', 'Discounts'],
+    ['live', 'Live orders'], ['inbox', 'Inbox'], ['orders', 'Order history'], ['menu', 'Products'], ['addons', 'Add-ons'], ['discounts', 'Discounts'],
     ['customers', 'Customers'], ['riders', 'Riders'], ['reports', 'Reports'], ['settings', 'Settings'],
   ];
   function shell() {
     root.innerHTML = `<div class="shell">
       <aside class="side" id="side">
         <a class="brand" href="admin/#/">Cafresco<small>Back office</small></a>
-        ${NAV.map(([k, l]) => `<a class="nav" href="admin/#/${k === 'live' ? '' : k}" data-nav="${k}">${l}${k === 'live' ? ' <span class="badge hidden" id="needBadge">0</span>' : ''}</a>`).join('')}
+        ${NAV.map(([k, l]) => `<a class="nav" href="admin/#/${k === 'live' ? '' : k}" data-nav="${k}">${l}${k === 'live' ? ' <span class="badge hidden" id="needBadge">0</span>' : ''}${k === 'inbox' ? ' <span class="badge hidden" id="chatBadge">0</span>' : ''}</a>`).join('')}
         <div style="padding:18px;border-top:0;margin-top:12px">
           <label class="row small" style="margin-bottom:12px"><input type="checkbox" id="storeOpen"> Accepting online orders</label>
           <div class="small muted">${esc(S.user.name)} · ${esc(S.user.role)}</div>
@@ -59,7 +59,10 @@
       }
       S.lastFeed = f.last_id;
       ['#needBadge', '#needBadge2'].forEach((id) => { const b = $(id); if (b) { b.textContent = f.needs_action; b.classList.toggle('hidden', !f.needs_action); } });
-      document.title = (f.needs_action ? `(${f.needs_action}) ` : '') + 'Cafresco · Admin';
+      const cb = $('#chatBadge');
+      if (cb) { cb.textContent = f.chat_unread; cb.classList.toggle('hidden', !f.chat_unread); }
+      const total = (f.needs_action || 0) + (f.chat_unread || 0);
+      document.title = (total ? `(${total}) ` : '') + 'Cafresco · Admin';
     } catch (e) { /* offline */ }
   }
 
@@ -323,6 +326,73 @@
     if (del) del.onclick = () => { if (confirm('Delete discount?')) busy(del, async () => { await api(`admin/discounts/${d.id}/delete`, { body: {} }); m.close(); showDiscounts(); }); };
   }
 
+  // ---------- Inbox (support chat) ----------
+  let inboxTimer = null;
+  async function showInbox(openId) {
+    setNav('inbox');
+    clearInterval(inboxTimer);
+    const sel = openId ? Number(openId) : null;
+    main().innerHTML = `<div class="toolbar"><h1>Inbox</h1><span class="small muted">Customers and riders can message you from the chat bubble. Replies show up in their app.</span></div>
+      <div class="inbox ${sel ? 'has-sel' : ''}"><div class="threads" id="threads"><div class="spinner"></div></div><div class="convo" id="convo">${sel ? '<div class="spinner"></div>' : '<div class="empty">Pick a conversation.</div>'}</div></div>`;
+    let lastId = 0;
+    const loadThreads = async () => {
+      const { threads } = await api('admin/chats');
+      const el = $('#threads'); if (!el) return;
+      el.innerHTML = threads.length ? threads.map((t) => `<a class="thread ${t.user_id === sel ? 'on' : ''} ${t.unread ? 'unread' : ''}" href="admin/#/inbox/${t.user_id}">
+          <div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b>${esc(t.name)}</b><span class="small muted">${fmtDate(t.last_at)}</span></div>
+          <div class="small muted ellip">${t.last_from_staff ? 'You: ' : ''}${esc(t.last_body)}</div>
+          <div class="row small" style="gap:6px">${t.role === 'rider' ? '<span class="tag">Rider</span>' : ''}${t.trusted ? '<span class="tag clay">Trusted</span>' : ''}${t.unread ? `<span class="badge">${t.unread}</span>` : ''}</div></a>`).join('')
+        : '<div class="empty small">No messages yet. When a customer or rider uses the chat bubble, it lands here.</div>';
+    };
+    const append = (msgs, reset) => {
+      const log = $('#clog'); if (!log) return;
+      if (reset) { log.innerHTML = ''; lastId = 0; }
+      msgs.filter((m) => m.id > lastId).forEach((m) => {
+        const d = document.createElement('div');
+        d.className = 'msg ' + (m.from_staff ? 'me' : 'them');
+        d.innerHTML = `<div class="bubble">${esc(m.body).replace(/\n/g, '<br>')}</div><small>${m.from_staff ? esc(m.staff_name || '') + ' · ' : ''}${fmtDate(m.created_at)}</small>`;
+        log.appendChild(d);
+        lastId = Math.max(lastId, m.id);
+      });
+      if (!log.children.length) log.innerHTML = '<div class="empty small">No messages yet. Say hi!</div>';
+      log.scrollTop = log.scrollHeight;
+    };
+    const loadConvo = async (reset) => {
+      if (!sel) return;
+      const r = await api(`admin/chats/${sel}` + (reset ? '' : `?after=${lastId}`));
+      if (reset) {
+        const u = r.user;
+        $('#convo').innerHTML = `<header class="convo-head"><a class="iconbtn back" href="admin/#/inbox" aria-label="Back">←</a>
+            <div style="flex:1"><b>${esc(u.name)}</b> ${u.role === 'rider' ? '<span class="tag">Rider</span>' : ''} ${u.trusted ? '<span class="tag clay">✓ Trusted</span>' : ''}
+            <div class="small muted">${esc(u.mobile)} · ${u.completed_orders} completed order(s)</div></div>
+            ${u.facebook_url ? `<a class="btn sm ghost" href="${esc(u.facebook_url)}" target="_blank" rel="noopener">Facebook ↗</a>` : ''}
+            ${u.role === 'customer' ? `<button class="btn sm ${u.trusted ? 'ghost' : 'clay'}" id="trustBtn">${u.trusted ? 'Remove trusted' : 'Mark trusted'}</button>` : ''}</header>
+          <div class="chatlog" id="clog"></div>
+          <form class="chatform" id="cform"><textarea rows="2" maxlength="2000" placeholder="Reply to ${esc(u.name.split(' ')[0])}…"></textarea><button class="btn clay" type="submit">Send</button></form>`;
+        const f = $('#cform'), ta = $('textarea', f);
+        ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } });
+        f.onsubmit = (e) => { e.preventDefault(); const body = ta.value.trim(); if (!body) return; busy(e.submitter || $('button', f), async () => { const x = await api(`admin/chats/${sel}`, { body: { body } }); ta.value = ''; append(x.messages, true); loadThreads(); }); };
+        const tb = $('#trustBtn');
+        if (tb) tb.onclick = () => {
+          const make = !u.trusted;
+          if (make && !confirm(`Mark ${u.name} as a trusted customer? They will be able to order and pay on pickup without GCash upfront.`)) return;
+          busy(tb, async () => { await api(`admin/customers/${sel}`, { body: { trusted: make } }); toast(make ? 'Marked as trusted' : 'Trusted removed'); showInbox(sel); });
+        };
+        ta.focus();
+      }
+      append(r.messages, reset);
+    };
+    await Promise.all([loadThreads(), loadConvo(true)]);
+    let tick = 0;
+    inboxTimer = setInterval(() => {
+      if (!/^#\/inbox/.test(location.hash)) { clearInterval(inboxTimer); return; }
+      if (document.hidden) return;
+      tick++;
+      if (sel) loadConvo(false).catch(() => {});
+      if (tick % 2 === 0 || !sel) loadThreads().catch(() => {});
+    }, 6000);
+  }
+
   // ---------- Customers ----------
   async function showCustomers() {
     setNav('customers');
@@ -330,16 +400,20 @@
     const { customers } = await api('admin/customers?q=' + encodeURIComponent(q));
     main().innerHTML = `<div class="toolbar"><h1>Customers</h1><form id="cf" class="row"><input name="q" value="${esc(q)}" placeholder="Name, email, mobile"><button class="btn sm" style="min-height:46px">Search</button></form></div>
       <div class="tablewrap"><table class="t"><thead><tr><th>Customer</th><th>Verified</th><th>Orders</th><th>Spend</th><th>Points</th><th>Status</th></tr></thead><tbody>
-      ${customers.map((c) => `<tr class="click" data-cid="${c.id}"><td><b>${esc(c.name)}</b><div class="small muted">${esc(c.email)} · ${esc(c.mobile)}</div>${c.staff_note ? `<div class="small">📝 ${esc(c.staff_note)}</div>` : ''}</td>
+      ${customers.map((c) => `<tr class="click" data-cid="${c.id}"><td><b>${esc(c.name)}</b><div class="small muted">${esc(c.email)} · ${esc(c.mobile)}</div>${c.staff_note ? `<div class="small">📝 ${esc(c.staff_note)}</div>` : ''}
+          <div class="row small" style="gap:6px;margin-top:4px">${Number(c.trusted) ? '<span class="tag clay">✓ Trusted</span>' : ''}${c.facebook_url ? `<a href="${esc(c.facebook_url)}" target="_blank" rel="noopener" data-stop>Facebook ↗</a>` : '<span class="muted">No Facebook link</span>'}</div></td>
         <td class="small">${c.email_verified_at ? '✓ email' : '✗ email'}<br>${c.mobile_verified_at ? '✓ mobile' : '✗ mobile'}</td><td>${c.completed_orders}</td><td class="mono">${peso(c.lifetime_spend)}</td>
         <td>${c.points_balance}</td><td>${c.status === 'blocked' ? '<span class="tag bad">Blocked</span>' : '<span class="tag ok">Active</span>'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No customers yet.</td></tr>'}</tbody></table></div>`;
     $('#cf').onsubmit = (e) => { e.preventDefault(); location.hash = '#/customers?q=' + encodeURIComponent(e.target.q.value); };
-    $$('[data-cid]').forEach((r) => r.onclick = () => editCustomer(customers.find((c) => Number(c.id) === Number(r.dataset.cid))));
+    $$('[data-cid]').forEach((r) => r.onclick = (e) => { if (e.target.closest('[data-stop]')) return; editCustomer(customers.find((c) => Number(c.id) === Number(r.dataset.cid))); });
   }
 
   function editCustomer(c) {
     const m = modal(c.name, `<p class="small muted">${esc(c.email)} · ${esc(c.mobile)} · joined ${fmtDate(c.created_at)}</p>
+      <div class="row" style="margin-bottom:14px">${c.facebook_url ? `<a class="btn sm ghost" href="${esc(c.facebook_url)}" target="_blank" rel="noopener">Open Facebook ↗</a>` : '<span class="small muted">No Facebook link yet.</span>'}<a class="btn sm" href="admin/#/inbox/${c.id}">💬 Message in app</a></div>
       <form id="cuf">
+        <label class="check" style="display:flex;gap:10px;align-items:flex-start;padding:12px;margin-bottom:14px"><input type="checkbox" name="trusted" ${Number(c.trusted) ? 'checked' : ''} style="margin-top:3px">
+          <span><b>Trusted customer</b><br><span class="small muted">Can skip GCash and pay on pickup, with no first-order limit. Only turn this on after you've confirmed who they are (for example on Facebook).</span></span></label>
         <label class="field"><span>Staff note (private)</span><input name="staff_note" value="${esc(c.staff_note || '')}" placeholder="e.g. regular, always on time"></label>
         <div class="grid2"><label class="field"><span>Adjust points (+/−)</span><input name="points_adjust" type="number" value="0"></label>
         <label class="field"><span>Reason</span><input name="points_reason" placeholder="e.g. goodwill"></label></div>
@@ -360,7 +434,8 @@
       <div class="board" style="margin-bottom:24px">${companies.map((c) => `<div class="ocard" data-coid="${c.id}"><b>${esc(c.name)}</b><div class="small muted">${esc(c.contact || '')}</div><div class="small">${c.base_rate !== null ? 'From <b>' + peso(c.base_rate) + '</b>' : '<span class="muted">No starting rate set</span>'}${c.rate_note ? ' · ' + esc(c.rate_note) : ''}</div>
         <div class="small">${c.rider_count} approved riders ${Number(c.active) ? '' : '<span class="tag">inactive</span>'}</div></div>`).join('') || '<div class="empty">Add the rider companies in your city first.</div>'}</div>
       <div class="tablewrap"><table class="t"><thead><tr><th>Rider</th><th>Company</th><th>Vehicle</th><th>Status</th><th>Deliveries</th><th></th></tr></thead><tbody>
-      ${riders.map((r) => `<tr><td><b>${esc(r.name)}</b><div class="small muted">${esc(r.mobile)} · ${esc(r.email)}</div></td><td>${esc(cname(r.company_id))}</td>
+      ${riders.map((r) => `<tr><td><b>${esc(r.name)}</b><div class="small muted">${esc(r.mobile)} · ${esc(r.email)}</div>
+          <div class="row small" style="gap:8px;margin-top:4px">${r.facebook_url ? `<a href="${esc(r.facebook_url)}" target="_blank" rel="noopener">Facebook ↗</a>` : '<span class="muted">No Facebook link</span>'}<a href="admin/#/inbox/${r.id}">💬 Message</a></div></td><td>${esc(cname(r.company_id))}</td>
         <td class="small">${esc(r.vehicle || '')} ${esc(r.plate_no || '')}</td>
         <td>${r.approval === 'approved' ? (Number(r.is_online) ? '<span class="tag ok">● Online</span>' : '<span class="tag">Offline</span>') : `<span class="tag ${r.approval === 'pending' ? 'clay' : 'bad'}">${r.approval}</span>`}
           ${r.status === 'blocked' ? '<span class="tag bad">blocked</span>' : ''}</td><td>${r.deliveries}</td>
@@ -477,7 +552,7 @@
     shell();
     const wrap = (fn) => async (...a) => { try { await fn(...a); } catch (e) { main().innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; } };
     const routes = [
-      [/^#\/?$/, wrap(showLive)], [/^#\/orders/, wrap(showOrders)], [/^#\/menu$/, wrap(showMenu)], [/^#\/addons$/, wrap(showAddons)],
+      [/^#\/?$/, wrap(showLive)], [/^#\/inbox\/(\d+)$/, wrap(showInbox)], [/^#\/inbox$/, wrap(() => showInbox())], [/^#\/orders/, wrap(showOrders)], [/^#\/menu$/, wrap(showMenu)], [/^#\/addons$/, wrap(showAddons)],
       [/^#\/discounts$/, wrap(showDiscounts)], [/^#\/customers/, wrap(showCustomers)], [/^#\/riders$/, wrap(showRiders)],
       [/^#\/reports$/, wrap(showReports)], [/^#\/settings$/, wrap(showSettings)],
     ];

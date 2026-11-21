@@ -1,6 +1,6 @@
 /* Cafresco service worker: offline app shell. API calls always go to the network. */
 const CACHE = 'cafresco-v7';
-const SHELL = ['/', '/index.html', '/assets/css/app.css?v=7', '/assets/js/core.js?v=7', '/assets/js/bakes.js?v=7', '/assets/js/app.js?v=7',
+const SHELL = ['/', '/index.html', '/assets/css/app.css?v=7', '/assets/js/core.js?v=7', '/assets/js/bakes.js?v=7', '/assets/js/chat.js?v=7', '/assets/js/app.js?v=7',
   '/assets/icons/icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

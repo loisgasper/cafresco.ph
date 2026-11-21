@@ -386,6 +386,7 @@
 
   function showCart() {
     setNav('cart');
+    if (S.user && S.user.trusted && !co.paymentTouched) co.payment = 'pay_on_pickup';
     if (!Cart.items.length) {
       view.innerHTML = `<div class="wrap" style="padding-top:24px"><h1>Cart</h1><div class="empty"><p>Your cart is empty.</p><a class="btn" href="#/">Browse menu</a></div></div>`;
       return;
@@ -429,7 +430,7 @@
             <h2>Payment</h2>
             <div class="seg" style="margin-bottom:12px">
               <button data-pm="gcash" class="${co.payment === 'gcash' ? 'on' : ''}">GCash now</button>
-              ${S.cfg.allow_pay_on_pickup ? `<button data-pm="pay_on_pickup" class="${co.payment === 'pay_on_pickup' ? 'on' : ''}">Pay on pickup</button>` : ''}
+              ${S.cfg.allow_pay_on_pickup || (S.user && S.user.trusted) ? `<button data-pm="pay_on_pickup" class="${co.payment === 'pay_on_pickup' ? 'on' : ''}">Pay on pickup</button>` : ''}
             </div>
             <div id="pmHelp" class="small muted"></div>
           </div>
@@ -455,7 +456,7 @@
       Cart.save(); co.points = 0; showCart();
     });
     $$('[data-ff]').forEach((b) => b.onclick = () => { co.fulfillment = b.dataset.ff; $$('[data-ff]').forEach((x) => x.classList.toggle('on', x === b)); syncCheckout(); });
-    $$('[data-pm]').forEach((b) => b.onclick = () => { co.payment = b.dataset.pm; $$('[data-pm]').forEach((x) => x.classList.toggle('on', x === b)); syncCheckout(); });
+    $$('[data-pm]').forEach((b) => b.onclick = () => { co.payment = b.dataset.pm; co.paymentTouched = true; $$('[data-pm]').forEach((x) => x.classList.toggle('on', x === b)); syncCheckout(); });
     $('#when').onchange = () => $('#whenAt').classList.toggle('hidden', $('#when').value !== 'later');
     $('#applyCode').onclick = () => { co.code = $('#code').value.trim().toUpperCase(); refreshQuote(); };
     $('#place').onclick = (e) => placeOrder(e.currentTarget);
@@ -496,7 +497,7 @@
     }[co.fulfillment];
     $('#pmHelp').innerHTML = (co.payment === 'gcash'
       ? `After placing your order, send the total to our GCash and upload the screenshot within ${S.cfg.payment_window_minutes} minutes. We start preparing once we confirm it.`
-      : 'You or your rider pay in cash or GCash when picking up. Available after your first completed GCash order.')
+      : (S.user && S.user.trusted ? '<b>✓ Trusted customer:</b> no upfront payment needed. You or your rider pay in cash or GCash at pickup.' : 'You or your rider pay in cash or GCash when picking up. Available after your first completed GCash order.'))
       + (co.payment === 'gcash' && co.fulfillment !== 'pickup'
         ? '<div class="notice clay small" style="margin:10px 0 0"><b>Delivery fee not included.</b> Your GCash payment covers your food and drinks only. Pay the delivery fee directly to your rider.</div>' : '');
     const fn = $('#feeNote');
@@ -733,8 +734,9 @@
       <label class="field"><span>Full name</span><input name="name" autocomplete="name" required maxlength="120"></label>
       <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
       <label class="field"><span>Mobile number</span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="09XX XXX XXXX" required></label>
+      <label class="field"><span>Facebook profile link (optional)</span><input name="facebook_url" type="url" inputmode="url" maxlength="255" placeholder="https://www.facebook.com/yourname"><small class="muted">Helps us confirm it's you and message you about orders. Regulars can be upgraded to pay on pickup.</small></label>
       <label class="field"><span>Password (8+ characters)</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
-      <label class="row small" style="margin-bottom:14px;flex-wrap:nowrap"><input type="checkbox" required> I agree that Cafresco stores my name, email and mobile number to process my orders.</label>
+      <label class="row small" style="margin-bottom:14px;flex-wrap:nowrap"><input type="checkbox" required> I agree that Cafresco stores my name, email, mobile number and Facebook link (if given) to process my orders.</label>
       <button class="btn block clay" type="submit">Create account</button>
       <div class="small" style="margin-top:14px">Already a member? <a href="#/login">Log in</a></div>
     </form>`);
@@ -776,6 +778,7 @@
     const pts = await api('points').catch(() => ({ balance: u.points, history: [] }));
     view.innerHTML = `<div class="wrap" style="padding-top:24px;max-width:760px">
       <h1>Hi, ${esc(u.name.split(' ')[0])}</h1>
+      ${u.trusted ? '<div class="notice clay small"><b>✓ Trusted customer.</b> You can order and pay on pickup, no GCash needed upfront.</div>' : (!u.facebook_url ? '<div class="notice small">Add your Facebook profile link below so we can confirm it\'s you. Regular customers we\'ve verified can pay on pickup instead of GCash first.</div>' : '')}
       <div class="kpis">
         <div class="kpi concrete"><span class="label">Points</span><b>${pts.balance}</b><span class="small muted">worth ${peso(pts.balance * S.cfg.peso_per_point)}</span></div>
         <div class="kpi"><span class="label">Earn rate</span><b>${Math.round(S.cfg.points_per_peso * 100)}</b><span class="small muted">points per ₱100 spent online</span></div>
@@ -790,6 +793,7 @@
       <div class="panel"><h2>Points history</h2>${pts.history.length ? `<div class="lines">${pts.history.map((h) => `<div class="line"><div class="grow">${esc(h.reason)}<div class="small muted">${fmtDate(h.created_at)}</div></div><div class="amt">${h.delta > 0 ? '+' : ''}${h.delta}</div></div>`).join('')}</div>` : '<p class="muted">Complete an online order to start earning.</p>'}</div>
       <div class="panel"><h2>Profile</h2><form id="pf">
         <label class="field"><span>Name</span><input name="name" value="${esc(u.name)}" required></label>
+        <label class="field"><span>Facebook profile link</span><input name="facebook_url" type="url" inputmode="url" maxlength="255" value="${esc(u.facebook_url || '')}" placeholder="https://www.facebook.com/yourname"></label>
         <div class="grid2"><label class="field"><span>Current password</span><input name="current_password" type="password" autocomplete="current-password"></label>
         <label class="field"><span>New password</span><input name="new_password" type="password" minlength="8" autocomplete="new-password"></label></div>
         <button class="btn ghost" type="submit">Save</button></form></div>
@@ -800,7 +804,7 @@
     if (ob) ob.onclick = () => busy(ob, async () => { await api('auth/send-mobile-otp', { body: {} }); toast('Code sent by SMS.'); $('#otpForm').classList.remove('hidden'); });
     $('#otpForm').onsubmit = (e) => { e.preventDefault(); busy(e.submitter, async () => { const r = await api('auth/verify-mobile', { body: formData(e.target) }); await onUser(r.user); toast('Mobile verified!'); showAccount(); }); };
     $('#pf').onsubmit = (e) => { e.preventDefault(); busy(e.submitter, async () => { const r = await api('auth/profile', { body: formData(e.target) }); await onUser(r.user); toast('Saved'); }); };
-    $('#logout').onclick = () => busy($('#logout'), async () => { await api('auth/logout', { body: {} }); S.user = null; location.hash = '#/'; });
+    $('#logout').onclick = () => busy($('#logout'), async () => { await api('auth/logout', { body: {} }); S.user = null; if (CF.chat) CF.chat.init(null); location.hash = '#/'; });
   }
 
   // ---------- Notifications (polling; free, no push service needed) ----------
@@ -822,6 +826,7 @@
   async function onUser(u) {
     S.user = u;
     if (u && u.role === 'rider') { location.href = 'rider/'; return; }
+    if (CF.chat) CF.chat.init(u, { facebookUrl: S.cfg.facebook_url, loginHref: '#/login' });
     clearInterval(notifTimer);
     if (u) { S.notifSince = 0; await pollNotifications(); notifTimer = setInterval(pollNotifications, 20000); }
   }

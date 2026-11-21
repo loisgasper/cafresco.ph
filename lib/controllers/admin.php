@@ -42,7 +42,7 @@ function admin_feed(): array
         : [];
     $last = (int)(q1('SELECT MAX(id) m FROM notifications WHERE audience = "staff"')['m'] ?? 0);
     $needs = (int)q1('SELECT COUNT(*) c FROM orders WHERE status IN ("payment_submitted","pending_confirmation")')['c'];
-    return ['items' => $items, 'last_id' => $last, 'needs_action' => $needs];
+    return ['items' => $items, 'last_id' => $last, 'needs_action' => $needs, 'chat_unread' => admin_chat_unread()];
 }
 
 function admin_orders(): array
@@ -291,7 +291,7 @@ function admin_customers(): array
         $like = '%' . $_GET['q'] . '%';
         $params = [$like, $like, $like];
     }
-    $rows = qall("SELECT u.id, u.name, u.email, u.mobile, u.status, u.points_balance, u.email_verified_at, u.mobile_verified_at, u.staff_note, u.created_at,
+    $rows = qall("SELECT u.id, u.name, u.email, u.mobile, u.status, u.points_balance, u.facebook_url, u.trusted, u.email_verified_at, u.mobile_verified_at, u.staff_note, u.created_at,
         (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id AND o.status = 'completed') AS completed_orders,
         (SELECT COALESCE(SUM(total),0) FROM orders o WHERE o.user_id = u.id AND o.status = 'completed') AS lifetime_spend
         FROM users u WHERE $where ORDER BY u.id DESC LIMIT 300", $params);
@@ -308,6 +308,13 @@ function admin_customer_update(array $p): array
     if (in('verify_mobile')) q('UPDATE users SET mobile_verified_at = COALESCE(mobile_verified_at, ?) WHERE id = ?', [now(), $id]);
     if (in('verify_email')) q('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?', [now(), $id]);
     if (in('staff_note') !== null) q('UPDATE users SET staff_note = ? WHERE id = ?', [str_in('staff_note', 500) ?: null, $id]);
+    if (in('trusted') !== null) {
+        $t = in('trusted') ? 1 : 0;
+        if ($t !== (int)$u['trusted']) {
+            q('UPDATE users SET trusted = ? WHERE id = ?', [$t, $id]);
+            if ($t) notify_user($id, 'You are a trusted customer', 'Thanks for being a regular! You can now order and pay on pickup, no GCash needed upfront.');
+        }
+    }
     $adj = (int)in('points_adjust', 0);
     if ($adj !== 0) {
         if ((int)$u['points_balance'] + $adj < 0) fail(422, 'Points cannot go below zero.');
@@ -324,7 +331,7 @@ function admin_riders(): array
     q('UPDATE rider_profiles SET is_online = 0 WHERE is_online = 1 AND (last_seen_at IS NULL OR last_seen_at < ?)', [date('Y-m-d H:i:s', time() - 1800)]);
     return [
         'companies' => qall('SELECT c.*, (SELECT COUNT(*) FROM rider_profiles rp WHERE rp.company_id = c.id AND rp.approval = "approved") AS rider_count FROM rider_companies c ORDER BY c.name'),
-        'riders' => qall('SELECT u.id, u.name, u.email, u.mobile, u.status, u.created_at, rp.company_id, rp.vehicle, rp.plate_no, rp.approval, rp.is_online, rp.last_seen_at,
+        'riders' => qall('SELECT u.id, u.name, u.email, u.mobile, u.facebook_url, u.status, u.created_at, rp.company_id, rp.vehicle, rp.plate_no, rp.approval, rp.is_online, rp.last_seen_at,
             (SELECT COUNT(*) FROM orders o WHERE o.rider_id = u.id AND o.status = "completed") AS deliveries
             FROM users u JOIN rider_profiles rp ON rp.user_id = u.id ORDER BY rp.approval = "pending" DESC, u.name'),
     ];

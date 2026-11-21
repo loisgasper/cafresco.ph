@@ -29,6 +29,7 @@
         <label class="field"><span>Full name</span><input name="name" required></label>
         <label class="field"><span>Mobile</span><input name="mobile" type="tel" required placeholder="09XX XXX XXXX"></label>
         <label class="field"><span>Email</span><input name="email" type="email" required></label>
+        <label class="field"><span>Facebook profile link (optional)</span><input name="facebook_url" type="url" inputmode="url" maxlength="255" placeholder="https://www.facebook.com/yourname"><small class="muted">Helps Cafresco confirm your identity and reach you about jobs.</small></label>
         <div class="grid2"><label class="field"><span>Vehicle</span><input name="vehicle" placeholder="Motorcycle"></label>
         <label class="field"><span>Plate no.</span><input name="plate_no" style="text-transform:uppercase"></label></div>
         <label class="field"><span>Password (8+)</span><input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
@@ -116,6 +117,7 @@
   function start(user) {
     S.user = user;
     nav();
+    if (CF.chat) CF.chat.init(user && user.role === 'rider' ? user : null, { loginHref: 'rider/#login' });
     clearInterval(S.timer);
     if (!user) return location.hash === '#register' ? showRegister() : showLogin();
     if (user.role !== 'rider') {

@@ -37,6 +37,11 @@ $routes = [
     ['GET',  'files/proof/{id}',             'file_proof'],
     ['GET',  'points',                       'points_history'],
     ['GET',  'notifications',                'notifications_list'],
+    ['GET',  'chat',                         'chat_get'],
+    ['POST', 'chat',                         'chat_send'],
+    ['GET',  'admin/chats',                  'admin_chats'],
+    ['GET',  'admin/chats/{id}',             'admin_chat_get'],
+    ['POST', 'admin/chats/{id}',             'admin_chat_send'],
     ['POST', 'notifications/read',           'notifications_read'],
     // rider
     ['POST', 'rider/register',               'rider_register'],
