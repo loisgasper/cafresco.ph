@@ -54,6 +54,7 @@
     if (!cats.some((c) => String(c.id) === String(S.cat))) S.cat = 'all';
     const smartSel = smart.find((f) => f.id === S.cat);
     const promo = m.promos[0];
+    const bakes = CF.BAKES || [];
     const catOrder = (p) => { const i = m.categories.findIndex((c) => Number(c.id) === p.category_id); return i < 0 ? 99 : i; };
     const favs = m.products.filter((p) => p.featured).sort((x, y) => catOrder(x) - catOrder(y)).map((p) => p.name);
     const words = favs.length ? favs : ['Spanish Latte', 'Matcha', 'Biscoff', 'Cappuccino'];
@@ -69,14 +70,15 @@
 
     view.innerHTML = `
       ${bannerHtml}
-      <section class="hero warm"><div class="wrap">
+      <section class="hero warm${bakes.length ? ' has-car' : ''}"><div class="wrap">
         <svg class="steam" viewBox="0 0 120 150" aria-hidden="true"><path d="M30 140 C10 110 50 90 30 60 S40 20 30 5"/><path d="M60 140 C40 110 80 90 60 60 S70 20 60 5"/><path d="M90 140 C70 110 110 90 90 60 S100 20 90 5"/></svg>
-        <div>
+        <div class="hero-text">
           <div class="label">Pickup · Takeout · Partner riders</div>
           <h1>Your <span class="rotator" id="rot">${esc(words[0])}</span><br>is a tap away.</h1>
           <p style="max-width:36ch;color:var(--ink-2)">Order ahead from our home café, pay with GCash, and grab it when it's ready. Members earn points on every online order.</p>
           ${!S.cfg.store_open ? '<div class="notice bad"><b>We are closed for online orders right now.</b> You can still browse the menu.</div>' : ''}
         </div>
+        ${bakes.length ? bakeCarouselHtml() : ''}
         <div class="stamp">
           <div class="label">Open</div>
           <div style="font-weight:800;font-size:1.1rem">${esc(S.cfg.store_hours || '')}</div>
@@ -100,6 +102,7 @@
     if (onTab && S.cat !== 'all') onTab.parentElement.scrollLeft = onTab.offsetLeft - 16;
     $$('[data-pid]').forEach((b) => b.onclick = () => openProduct(Number(b.dataset.pid)));
     $$('[data-resend]').forEach((b) => b.onclick = () => resendEmail(b));
+    if (bakes.length) startBakeCarousel();
     clearInterval(rotTimer);
     let i = 0;
     rotTimer = setInterval(() => {
@@ -111,6 +114,178 @@
       void el.offsetWidth;
       el.classList.toggle('swap', true);
     }, 2600);
+  }
+
+  // ---------- Bakes: hero carousel ----------
+  const bakeSrc = (b, thumb) => `assets/bakes/${thumb ? 'thumb/' : ''}${b.f}.webp`;
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let carTimer = null, carIdx = 0;
+  function bakeCarouselHtml() {
+    const b = CF.BAKES[carIdx];
+    return `<div class="bakecar" id="bakecar" role="region" aria-roledescription="carousel" aria-label="Fresh bakes" tabindex="0">
+      <img class="on" src="${bakeSrc(b)}" alt="${esc(b.name)}" width="600" height="750" fetchpriority="high">
+      <img alt="" width="600" height="750">
+      <span class="count mono" id="carCount"></span>
+      <div class="cap"><span class="label">Fresh from our oven</span><b id="carName">${esc(b.name)}</b><span class="more">See all bakes →</span></div>
+      <button class="arrow prev" type="button" aria-label="Previous photo">‹</button>
+      <button class="arrow next" type="button" aria-label="Next photo">›</button>
+      <div class="bar"><i id="carBar"></i></div>
+    </div>`;
+  }
+  function startBakeCarousel() {
+    const box = $('#bakecar');
+    if (!box) return;
+    const list = CF.BAKES, imgs = $$('img', box), DUR = 4200;
+    let front = 0, busyFlip = false, paused = false;
+    const pad = (n) => String(n).padStart(2, '0');
+    const setCount = () => { $('#carCount').textContent = `${pad(carIdx + 1)} / ${list.length}`; };
+    const runBar = () => {
+      const bar = $('#carBar'); if (!bar) return;
+      bar.classList.remove('run'); bar.style.setProperty('--dur', DUR + 'ms'); void bar.offsetWidth;
+      if (!paused) bar.classList.add('run');
+    };
+    const go = (dir) => {
+      if (busyFlip || !document.body.contains(box)) return;
+      busyFlip = true;
+      carIdx = (carIdx + dir + list.length) % list.length;
+      const b = list[carIdx], back = imgs[1 - front], cur = imgs[front], name = $('#carName');
+      const swap = () => {
+        cur.classList.remove('on'); back.classList.add('on'); back.alt = b.name; cur.alt = '';
+        front = 1 - front; name.classList.add('out');
+        setTimeout(() => { name.textContent = b.name; name.classList.remove('out'); }, 300);
+        setCount(); runBar();
+        setTimeout(() => { busyFlip = false; }, 500);
+        const nx = new Image(); nx.src = bakeSrc(list[(carIdx + 1) % list.length]); // warm the next one
+      };
+      back.onload = null;
+      if (back.getAttribute('src') === bakeSrc(b) && back.complete) { swap(); return; }
+      back.onload = () => { back.onload = null; (back.decode ? back.decode().catch(() => {}) : Promise.resolve()).then(swap); };
+      back.onerror = () => { busyFlip = false; };
+      back.src = bakeSrc(b);
+    };
+    const schedule = () => { clearInterval(carTimer); carTimer = setInterval(() => { if (!document.body.contains(box)) { clearInterval(carTimer); return; } if (!paused && !document.hidden) go(1); }, DUR); };
+    setCount(); runBar(); schedule();
+    { const nx = new Image(); nx.src = bakeSrc(list[(carIdx + 1) % list.length]); }
+    box.addEventListener('mouseenter', () => { paused = true; runBar(); });
+    box.addEventListener('mouseleave', () => { paused = false; runBar(); schedule(); });
+    $('.arrow.prev', box).onclick = (e) => { e.stopPropagation(); go(-1); schedule(); };
+    $('.arrow.next', box).onclick = (e) => { e.stopPropagation(); go(1); schedule(); };
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { go(-1); schedule(); } else if (e.key === 'ArrowRight') { go(1); schedule(); } else if (e.key === 'Enter') location.hash = '#/bakes/' + carIdx;
+    });
+    // Swipe left/right to change photo, tap to open the gallery.
+    let sx = null, sy = 0;
+    box.addEventListener('pointerdown', (e) => { if (e.target.closest('.arrow')) return; sx = e.clientX; sy = e.clientY; });
+    box.addEventListener('pointerup', (e) => {
+      if (sx === null) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { go(dx < 0 ? 1 : -1); schedule(); }
+      else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) location.hash = '#/bakes/' + carIdx;
+    });
+    box.addEventListener('pointercancel', () => { sx = null; });
+  }
+
+  // ---------- Bakes: gallery page ----------
+  let bakeGroup = 'all';
+  function showBakes(openAt) {
+    setNav('bakes');
+    clearInterval(carTimer);
+    const list = CF.BAKES || [];
+    const groups = ['all', ...new Set(list.map((b) => b.group))];
+    if (!groups.includes(bakeGroup)) bakeGroup = 'all';
+    view.innerHTML = `
+      <section class="bakes-hero"><div class="wrap">
+        <div>
+        <div class="label">From the oven · ${list.length} photos</div>
+        <h1>Fresh bakes</h1>
+        <span class="script">baked in small batches, every week</span>
+        <p>Cakes, cookies, breads and little treats from our home kitchen. What comes out of the oven changes day to day, so ask what's fresh when you order.</p>
+        </div>
+        <div class="bakes-stack" aria-hidden="true">${['burnt-basque', 'churros2', 'korean-garlic-bun'].map((f) => list.find((b) => b.f === f)).filter(Boolean).map((b) => `<img src="${bakeSrc(b, true)}" alt="">`).join('')}</div>
+      </div></section>
+      <div class="wrap">
+        <div class="cats" role="tablist">${groups.map((g) => `<button data-g="${esc(g)}" class="${g === bakeGroup ? 'on' : ''}">${g === 'all' ? 'All' : esc(g)}</button>`).join('')}</div>
+        <div class="bakes-grid" id="bgrid"></div>
+        <div class="bakes-cta"><a class="btn clay" href="#/">Pair it with a drink →</a></div>
+      </div>
+      ${footer()}`;
+    const grid = $('#bgrid');
+    let io = null;
+    const render = () => {
+      const items = list.map((b, i) => ({ b, i })).filter(({ b }) => bakeGroup === 'all' || b.group === bakeGroup);
+      grid.innerHTML = items.map(({ b, i }, k) => `<button class="bake${k % 9 === 0 ? ' big' : ''}" data-bi="${i}" style="transition-delay:${(k % 6) * 60}ms">
+        <img src="${bakeSrc(b, k % 9 !== 0)}" alt="${esc(b.name)}" loading="${k < 6 ? 'eager' : 'lazy'}" width="300" height="375">
+        <span class="cap"><b>${esc(b.name)}</b><small>${esc(b.group)}</small></span></button>`).join('');
+      if (io) io.disconnect();
+      if ('IntersectionObserver' in window && !reduceMotion()) {
+        io = new IntersectionObserver((es) => es.forEach((en) => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } }), { rootMargin: '0px 0px -40px 0px' });
+        $$('.bake', grid).forEach((t) => io.observe(t));
+      } else $$('.bake', grid).forEach((t) => t.classList.add('in'));
+      $$('.bake', grid).forEach((t) => t.onclick = () => openLightbox(Number(t.dataset.bi), items.map((x) => x.i)));
+    };
+    render();
+    $$('[data-g]').forEach((btn) => btn.onclick = () => {
+      if (btn.dataset.g === bakeGroup) return;
+      bakeGroup = btn.dataset.g;
+      $$('[data-g]').forEach((x) => x.classList.toggle('on', x === btn));
+      grid.classList.add('fade');
+      setTimeout(() => { render(); grid.classList.remove('fade'); }, 250);
+    });
+    if (openAt !== undefined && list[Number(openAt)]) openLightbox(Number(openAt), list.map((_, i) => i));
+  }
+
+  function openLightbox(start, order) {
+    const list = CF.BAKES;
+    let pos = Math.max(0, order.indexOf(start));
+    const lb = document.createElement('div');
+    lb.className = 'lightbox overlay';
+    lb.setAttribute('role', 'dialog'); lb.setAttribute('aria-modal', 'true'); lb.setAttribute('aria-label', 'Bakes gallery');
+    lb.innerHTML = `<button class="close" aria-label="Close">✕</button>
+      <div class="frame"><img alt=""><img alt=""></div>
+      <div class="meta"><b></b><span></span></div>
+      <button class="lb-prev" aria-label="Previous">‹</button><button class="lb-next" aria-label="Next">›</button>`;
+    document.body.appendChild(lb);
+    document.body.style.overflow = 'hidden';
+    const imgs = $$('.frame img', lb), title = $('.meta b', lb), sub = $('.meta span', lb);
+    let front = 0, token = 0;
+    const show = (first) => {
+      const b = list[order[pos]], t = ++token, back = first ? imgs[0] : imgs[1 - front];
+      title.textContent = b.name;
+      sub.textContent = `${b.group} · ${pos + 1} / ${order.length}`;
+      const flip = () => {
+        if (t !== token) return;
+        if (!first) { imgs[front].classList.remove('on'); front = 1 - front; }
+        back.alt = b.name; back.classList.add('on');
+      };
+      back.onload = () => { back.onload = null; flip(); };
+      back.src = bakeSrc(b);
+      if (back.complete && back.naturalWidth) { back.onload = null; flip(); }
+      [1, -1].forEach((d) => { const n = new Image(); n.src = bakeSrc(list[order[(pos + d + order.length) % order.length]]); });
+      try { history.replaceState(null, '', '#/bakes/' + order[pos]); } catch (e) { /* ignore */ }
+    };
+    const step = (d) => { pos = (pos + d + order.length) % order.length; show(false); };
+    const close = () => {
+      document.removeEventListener('keydown', onKey);
+      lb.style.transition = 'opacity .25s ease'; lb.style.opacity = '0';
+      setTimeout(() => { lb.parentNode && lb.parentNode.removeChild(lb); document.body.style.overflow = ''; }, 250);
+      try { history.replaceState(null, '', '#/bakes'); } catch (e) { /* ignore */ }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); };
+    document.addEventListener('keydown', onKey);
+    $('.close', lb).onclick = close;
+    $('.lb-prev', lb).onclick = () => step(-1);
+    $('.lb-next', lb).onclick = () => step(1);
+    lb.addEventListener('click', (e) => { if (e.target === lb) close(); });
+    let sx = null, sy = 0;
+    lb.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; });
+    lb.addEventListener('pointerup', (e) => {
+      if (sx === null) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
+      else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) close();
+    });
+    show(true);
+    $('.close', lb).focus({ preventScroll: true });
   }
 
   function drinkCard(p) {
@@ -613,6 +788,8 @@
     }
     router([
       [/^#\/?$/, showMenu],
+      [/^#\/bakes$/, () => showBakes()],
+      [/^#\/bakes\/(\d+)$/, (i) => showBakes(i)],
       [/^#\/cart$/, showCart],
       [/^#\/orders$/, showOrders],
       [/^#\/orders\/(\d+)$/, showOrder],
