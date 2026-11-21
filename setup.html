@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/">
+  <title>Cafresco · Setup</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/css/app.css?v=1">
+</head>
+<body>
+  <div class="wrap"><div class="auth">
+    <div class="brand" style="margin-bottom:20px">Cafresco<small>One-time setup</small></div>
+    <p class="muted">Creates the database tables and the owner (admin) account. Needs the <b>setup_token</b> from the server config. It does nothing once an admin exists, except update tables.</p>
+    <form id="f" class="panel shadow">
+      <label class="field"><span>Setup token</span><input name="setup_token" type="password" required></label>
+      <label class="field"><span>Owner name</span><input name="name" required></label>
+      <label class="field"><span>Owner email</span><input name="email" type="email" required></label>
+      <label class="field"><span>Owner mobile</span><input name="mobile" required placeholder="09XX XXX XXXX"></label>
+      <label class="field"><span>Password (8+)</span><input name="password" type="password" minlength="8" required></label>
+      <button class="btn block clay">Install</button>
+    </form>
+    <div id="out"></div>
+  </div></div>
+  <script src="assets/js/core.js?v=1"></script>
+  <script>
+    CF.$('#f').onsubmit = (e) => { e.preventDefault(); CF.busy(e.submitter, async () => {
+      const r = await CF.api('setup', { body: CF.formData(e.target) });
+      CF.$('#out').innerHTML = '<div class="notice">' + CF.esc(r.message) + ' <a href="admin/">Open admin →</a></div>';
+    }); };
+  </script>
+</body>
+</html>

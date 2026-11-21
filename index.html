@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <base href="/">
+  <title>Cafresco · Order online</title>
+  <meta name="description" content="Order Cafresco coffee and food for pickup or rider takeout. Pay with GCash, earn points.">
+  <meta name="theme-color" content="#0e0e0e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Cafresco">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800;900&family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css?v=1">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <a href="#/" class="brand">Cafresco<small>Home café · est. 2024</small></a>
+      <nav class="topnav" id="topnav">
+        <a href="#/" data-nav="menu">Menu</a>
+        <a href="#/orders" data-nav="orders">Orders</a>
+        <a href="#/cart" data-nav="cart">Cart <span class="badge hidden" data-cartcount>0</span></a>
+        <a href="#/account" data-nav="account">Account</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="view"><div class="spinner"></div></main>
+
+  <nav class="bottomnav" id="bottomnav" aria-label="Main">
+    <a href="#/" data-nav="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8z"/><path d="M17 10h2a2 2 0 0 1 0 4h-2"/><path d="M8 2v3M12 2v3"/></svg>Menu</a>
+    <a href="#/orders" data-nav="orders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>Orders</a>
+    <a href="#/cart" data-nav="cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 7h14l-1.5 13h-11z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>Cart<span class="badge hidden" data-cartcount>0</span></a>
+    <a href="#/account" data-nav="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</a>
+  </nav>
+
+  <a href="#/cart" class="btn clay cart-fab hidden" id="cartFab">Cart · <span data-carttotal>₱0.00</span></a>
+
+  <script src="assets/js/core.js?v=1"></script>
+  <script src="assets/js/app.js?v=1"></script>
+</body>
+</html>

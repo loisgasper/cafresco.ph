@@ -1,0 +1,7 @@
+config.local.php
+cafresco-config.php
+/uploads/
+/.dev/
+.DS_Store
+node_modules/
+/.private/
