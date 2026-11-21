@@ -212,7 +212,9 @@
       <label class="field"><span>Category</span><select name="category_id"><option value="">—</option>${c.categories.map((x) => `<option value="${x.id}" ${Number(x.id) === Number(p.category_id) ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label></div>
       <label class="field"><span>Description</span><textarea name="description" maxlength="500">${esc(p.description || '')}</textarea></label>
       <div class="grid2"><label class="field"><span>Base price (used when there are no variants)</span><input name="base_price" type="number" step="0.01" min="0" value="${p.base_price}"></label>
-      <label class="field"><span>Sort order</span><input name="sort" type="number" value="${p.sort || 0}"></label></div>
+      <label class="field"><span>Sort order</span><input name="sort" type="number" value="${p.sort || 0}"></label>
+      <label class="field"><span>Menu filter</span><select name="drink_type"><option value="">— (not a drink)</option><option value="coffee" ${p.drink_type === 'coffee' ? 'selected' : ''}>Coffee</option><option value="non_coffee" ${p.drink_type === 'non_coffee' ? 'selected' : ''}>Non-Coffee</option></select></label></div>
+      <p class="small muted" style="margin:-4px 0 12px">Sizes: name variants <b>Hot 8oz</b> and <b>Iced 16oz</b> (typing “Hot” or “16oz” is renamed automatically).</p>
       <label class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap"><input name="image_url" value="${esc(p.image_url || '')}" placeholder="Image URL or upload →"><input type="file" id="img" accept="image/*" style="max-width:130px"></div></label>
       <div class="label" style="margin:16px 0 8px">Variants (sizes, temperature…) · customer must pick one</div>
       <div id="vars">${p.variants.map(subRow).join('')}</div><button type="button" class="btn sm ghost" id="addVar">+ Variant</button>
@@ -233,7 +235,7 @@
       const d = formData(f);
       const body = {
         id: p.id || null, name: d.name, category_id: d.category_id || null, description: d.description, base_price: Number(d.base_price || 0), sort: Number(d.sort || 0),
-        image_url: d.image_url, active: d.active, sold_out: d.sold_out, featured: d.featured, variants: readRows($('#vars', m.el)),
+        image_url: d.image_url, active: d.active, sold_out: d.sold_out, featured: d.featured, drink_type: d.drink_type || null, variants: readRows($('#vars', m.el)),
         addon_group_ids: c.addon_groups.filter((g) => d['g_' + g.id]).map((g) => Number(g.id)),
       };
       await api('admin/products', { body }); toast('Saved'); m.close(); showMenu();

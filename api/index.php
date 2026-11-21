@@ -13,6 +13,7 @@ $routes = [
     ['POST', 'setup',                        'setup_install'],
     ['POST', 'setup/seed-menu',              'setup_seed_menu'],
     ['POST', 'setup/fill-descriptions',      'setup_fill_descriptions'],
+    ['POST', 'setup/normalize-menu',         'setup_normalize_menu'],
     // auth
     ['GET',  'auth/me',                      'auth_me'],
     ['POST', 'auth/register',                'auth_register'],

@@ -74,7 +74,7 @@ function admin_loyverse_sync(): array
             foreach ($variants as $i => $v) {
                 $vname = trim(implode(' / ', array_filter([$v['option1_value'] ?? null, $v['option2_value'] ?? null, $v['option3_value'] ?? null]))) ?: ('Option ' . ($i + 1));
                 q('INSERT INTO product_variants (product_id, name, price, sort, loyverse_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), price = VALUES(price)',
-                    [$pid, mb_substr($vname, 0, 80), loyverse_variant_price($v), $i, $v['variant_id']]);
+                    [$pid, mb_substr(size_label($vname), 0, 80), loyverse_variant_price($v), $i, $v['variant_id']]);
                 $stats['variants']++;
             }
         }

@@ -370,3 +370,6 @@ table.t tr.click:hover td { background-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   .btn, .drink, .ocard, .cats button, .seg button, .topnav a, .side a.nav, .check, .bottomnav a, table.t tr.click td, .guide-card { transition: none; }
 }
+.sizes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.sizes span { background: var(--blush); border-radius: 999px; padding: 5px 12px; font: .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.sizes b { font-weight: 700; }

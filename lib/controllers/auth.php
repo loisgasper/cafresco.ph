@@ -225,6 +225,58 @@ function run_migrations(): void
 {
     $has = fn(string $table, string $col) => (bool)q1('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$table, $col]);
     if (!$has('products', 'featured')) db()->exec('ALTER TABLE products ADD COLUMN featured TINYINT(1) NOT NULL DEFAULT 0 AFTER sold_out');
+    if (!$has('products', 'drink_type')) db()->exec("ALTER TABLE products ADD COLUMN drink_type ENUM('coffee','non_coffee') NULL AFTER featured");
+}
+
+/**
+ * Tidy the menu: size labels become "Hot 8oz" / "Iced 16oz", single-price drinks get an "Iced 16oz" option,
+ * and drinks are tagged coffee / non-coffee from the printed menu (only where not tagged yet). Safe to re-run.
+ */
+function setup_normalize_menu(): array
+{
+    require_setup_token();
+    run_migrations();
+    $menu = require APP_ROOT . '/sql/seed_menu.php';
+    $norm = fn(string $n) => preg_replace('/[^a-z0-9]+/', '', strtolower($n));
+    $types = [];
+    foreach ($menu['categories'] as $cat) foreach ($cat['items'] as $it) $types[$norm($it[0])] = $cat['type'];
+    foreach ($menu['extra'] as $name => $e) $types[$norm($name)] = $e[2];
+    $stats = ['renamed' => 0, 'added_iced' => 0, 'typed' => 0, 'untyped' => []];
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        foreach (qall('SELECT id, name, price FROM product_variants') as $v) {
+            $new = size_label($v['name']);
+            if ($new !== $v['name']) { q('UPDATE product_variants SET name = ? WHERE id = ?', [$new, $v['id']]); $stats['renamed']++; }
+        }
+        $drinkCats = array_map('intval', array_column(qall('SELECT id FROM categories WHERE name NOT LIKE "%food%"'), 'id'));
+        foreach (qall('SELECT id, name, base_price, category_id, drink_type FROM products') as $p) {
+            $type = $types[$norm($p['name'])] ?? null;
+            if (!$p['drink_type'] && $type) { q('UPDATE products SET drink_type = ? WHERE id = ?', [$type, $p['id']]); $stats['typed']++; }
+            elseif (!$p['drink_type'] && in_array((int)$p['category_id'], $drinkCats, true)) $stats['untyped'][] = $p['name'];
+            $isDrink = $type || $p['drink_type'];
+            if ($isDrink && !q1('SELECT id FROM product_variants WHERE product_id = ? LIMIT 1', [$p['id']])) {
+                q('INSERT INTO product_variants (product_id, name, price, sort) VALUES (?, "Iced 16oz", ?, 1)', [$p['id'], $p['base_price']]);
+                $stats['added_iced']++;
+            }
+        }
+        // Hot first, then iced.
+        q('UPDATE product_variants SET sort = CASE WHEN name LIKE "Hot%" THEN 0 WHEN name LIKE "Iced%" THEN 1 ELSE sort END');
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return ['ok' => true] + $stats;
+}
+
+/** Map size names from Loyverse or staff ("Hot", "16oz", "Iced") to the house labels. */
+function size_label(string $name): string
+{
+    $n = strtolower(trim($name));
+    if (preg_match('/^hot\b|^8\s*oz$|^hot\s*8\s*oz$/', $n)) return 'Hot 8oz';
+    if (preg_match('/^(iced\b|cold\b|16\s*oz$)/', $n)) return 'Iced 16oz';
+    return $name;
 }
 
 function require_setup_token(): void
@@ -251,10 +303,10 @@ function setup_seed_menu(): array
             q('INSERT INTO categories (name, sort) VALUES (?, ?)', [$cat['name'], $ci]);
             $cid = (int)$pdo->lastInsertId();
             foreach ($cat['items'] as $pi => [$name, $hot, $iced, $fav, $desc]) {
-                q('INSERT INTO products (category_id, name, description, base_price, featured, sort) VALUES (?, ?, ?, ?, ?, ?)', [$cid, $name, $desc, $iced ?? $hot, $fav ? 1 : 0, $pi]);
+                q('INSERT INTO products (category_id, name, description, base_price, featured, drink_type, sort) VALUES (?, ?, ?, ?, ?, ?, ?)', [$cid, $name, $desc, $iced ?? $hot, $fav ? 1 : 0, $cat['type'] ?? null, $pi]);
                 $pid = (int)$pdo->lastInsertId();
                 $vs = 0;
-                if ($hot !== null) q('INSERT INTO product_variants (product_id, name, price, sort) VALUES (?, "Hot", ?, ?)', [$pid, $hot, $vs++]);
+                if ($hot !== null) q('INSERT INTO product_variants (product_id, name, price, sort) VALUES (?, "Hot 8oz", ?, ?)', [$pid, $hot, $vs++]);
                 if ($iced !== null) q('INSERT INTO product_variants (product_id, name, price, sort) VALUES (?, "Iced 16oz", ?, ?)', [$pid, $iced, $vs++]);
                 if (!empty($cat['addons'])) q('INSERT INTO product_addon_groups (product_id, group_id) VALUES (?, ?)', [$pid, $gid]);
                 $count++;
@@ -280,7 +332,7 @@ function setup_fill_descriptions(): array
     $norm = fn(string $n) => preg_replace('/[^a-z0-9]+/', '', strtolower($n));
     $map = [];
     foreach ($menu['categories'] as $cat) foreach ($cat['items'] as [$name, , , $fav, $desc]) $map[$norm($name)] = [$fav, $desc];
-    foreach ($menu['extra'] as $name => [$fav, $desc]) $map[$norm($name)] = [$fav, $desc];
+    foreach ($menu['extra'] as $name => $e) $map[$norm($name)] = [$e[0], $e[1]];
     $filled = 0; $missing = [];
     foreach (qall('SELECT id, name, description FROM products') as $p) {
         if (trim((string)$p['description']) !== '') continue;

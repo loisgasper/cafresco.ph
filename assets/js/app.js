@@ -44,7 +44,15 @@
       try { S.menu = await api('menu'); } catch (e) { view.innerHTML = `<div class="wrap"><div class="notice bad">${esc(e.message)}</div></div>`; return; }
     }
     const m = S.menu;
-    const cats = [{ id: 'all', name: 'All' }, ...m.categories.filter((c) => m.products.some((p) => p.category_id === Number(c.id)))];
+    // Tabs: All, real categories, then smart filters (favorites, coffee, non-coffee) when they have items.
+    const smart = [
+      { id: 'fav', name: '✿ Favorites', test: (p) => p.featured },
+      { id: 'coffee', name: 'Coffee', test: (p) => p.drink_type === 'coffee' },
+      { id: 'non_coffee', name: 'Non-Coffee', test: (p) => p.drink_type === 'non_coffee' },
+    ].filter((f) => m.products.some(f.test) && !m.categories.some((c) => c.name.toLowerCase().replace(/[^a-z]/g, '') === f.id.replace('_', '')));
+    const cats = [{ id: 'all', name: 'All' }, ...m.categories.filter((c) => m.products.some((p) => p.category_id === Number(c.id))), ...smart];
+    if (!cats.some((c) => String(c.id) === String(S.cat))) S.cat = 'all';
+    const smartSel = smart.find((f) => f.id === S.cat);
     const promo = m.promos[0];
     const catOrder = (p) => { const i = m.categories.findIndex((c) => Number(c.id) === p.category_id); return i < 0 ? 99 : i; };
     const favs = m.products.filter((p) => p.featured).sort((x, y) => catOrder(x) - catOrder(y)).map((p) => p.name);
@@ -57,7 +65,7 @@
     const groups = S.cat === 'all'
       ? [...m.categories.map((c) => ({ name: c.name, items: m.products.filter((p) => p.category_id === Number(c.id)) })),
          { name: 'More', items: m.products.filter((p) => !p.category_id || !m.categories.some((c) => Number(c.id) === p.category_id)) }].filter((g) => g.items.length)
-      : [{ name: null, items: m.products.filter((p) => p.category_id === Number(S.cat)) }];
+      : [{ name: null, items: m.products.filter(smartSel ? smartSel.test : (p) => p.category_id === Number(S.cat)) }];
 
     view.innerHTML = `
       ${bannerHtml}
@@ -74,6 +82,7 @@
           <div style="font-weight:800;font-size:1.1rem">${esc(S.cfg.store_hours || '')}</div>
           ${S.cfg.store_address ? `<div class="small muted">${esc(S.cfg.store_address)}</div>` : ''}
           ${S.user ? `<div style="margin-top:10px" class="mono small">${esc(S.user.name.split(' ')[0])} · <b>${S.user.points}</b> pts</div>` : '<a class="btn sm clay" style="margin-top:12px" href="#/register">Join &amp; earn points</a>'}
+          <div class="sizes"><span>☕ Hot <b>8oz</b></span><span>🧊 Iced <b>16oz</b></span></div>
           <div class="small muted" style="margin-top:10px"><span style="color:var(--clay)">✿</span> = customer favorite</div>
         </div>
       </div></section>
@@ -87,6 +96,8 @@
       ${coffeeGuide()}
       ${footer()}`;
     $$('[data-cat]').forEach((b) => b.onclick = () => { S.cat = b.dataset.cat; showMenu(); });
+    const onTab = $('.cats button.on');
+    if (onTab && S.cat !== 'all') onTab.parentElement.scrollLeft = onTab.offsetLeft - 16;
     $$('[data-pid]').forEach((b) => b.onclick = () => openProduct(Number(b.dataset.pid)));
     $$('[data-resend]').forEach((b) => b.onclick = () => resendEmail(b));
     clearInterval(rotTimer);

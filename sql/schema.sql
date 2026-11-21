@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS products (
   active TINYINT(1) NOT NULL DEFAULT 1,
   sold_out TINYINT(1) NOT NULL DEFAULT 0,
   featured TINYINT(1) NOT NULL DEFAULT 0,
+  drink_type ENUM('coffee','non_coffee') NULL,
   sort INT NOT NULL DEFAULT 0,
   loyverse_id VARCHAR(64) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

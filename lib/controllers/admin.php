@@ -145,20 +145,20 @@ function admin_product_save(): array
     $price = money(in('base_price', 0));
     if ($price < 0) fail(422, 'Price cannot be negative.');
     $vals = [$cat, str_in('name', 120, true), str_in('description', 500) ?: null, str_in('image_url', 500) ?: null, $price,
-        in('active', true) ? 1 : 0, in('sold_out', false) ? 1 : 0, in('featured', false) ? 1 : 0, (int)in('sort', 0)];
+        in('active', true) ? 1 : 0, in('sold_out', false) ? 1 : 0, in('featured', false) ? 1 : 0, in_array(in('drink_type'), ['coffee', 'non_coffee'], true) ? in('drink_type') : null, (int)in('sort', 0)];
     $pdo = db();
     $pdo->beginTransaction();
     try {
         if ($id) {
             if (!q1('SELECT id FROM products WHERE id = ?', [$id])) fail(404, 'Product not found');
-            q('UPDATE products SET category_id = ?, name = ?, description = ?, image_url = ?, base_price = ?, active = ?, sold_out = ?, featured = ?, sort = ? WHERE id = ?', [...$vals, $id]);
+            q('UPDATE products SET category_id = ?, name = ?, description = ?, image_url = ?, base_price = ?, active = ?, sold_out = ?, featured = ?, drink_type = ?, sort = ? WHERE id = ?', [...$vals, $id]);
         } else {
-            q('INSERT INTO products (category_id, name, description, image_url, base_price, active, sold_out, featured, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', $vals);
+            q('INSERT INTO products (category_id, name, description, image_url, base_price, active, sold_out, featured, drink_type, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', $vals);
             $id = (int)$pdo->lastInsertId();
         }
         $keep = [];
         foreach ((array)in('variants', []) as $i => $v) {
-            $vn = mb_substr(trim((string)($v['name'] ?? '')), 0, 80);
+            $vn = mb_substr(size_label(trim((string)($v['name'] ?? ''))), 0, 80);
             if ($vn === '') continue;
             $vp = money($v['price'] ?? 0);
             $vid = (int)($v['id'] ?? 0);
