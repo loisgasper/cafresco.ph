@@ -244,6 +244,8 @@ function run_migrations(): void
     if (!$has('orders', 'rider_fee')) db()->exec("ALTER TABLE orders ADD COLUMN delivery_lat DECIMAL(9,6) NULL AFTER own_rider_info, ADD COLUMN delivery_lng DECIMAL(9,6) NULL AFTER delivery_lat,
         ADD COLUMN rider_fee DECIMAL(10,2) NULL AFTER rider_id, ADD COLUMN rider_quote_status ENUM('pending','accepted') NULL AFTER rider_fee,
         ADD COLUMN rider_quote_at DATETIME NULL AFTER rider_quote_status, ADD COLUMN declined_riders VARCHAR(500) NULL AFTER rider_quote_at");
+    // Riders assigned before rate offers existed count as accepted, so they can still pick up.
+    q("UPDATE orders SET rider_quote_status = 'accepted' WHERE rider_id IS NOT NULL AND rider_quote_status IS NULL");
 }
 
 /**
