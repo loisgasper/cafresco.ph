@@ -44,7 +44,7 @@
       try { S.menu = await api('menu'); } catch (e) { view.innerHTML = `<div class="wrap"><div class="notice bad">${esc(e.message)}</div></div>`; return; }
     }
     const m = S.menu;
-    const cats = [{ id: 'all', name: 'All' }, ...m.categories];
+    const cats = [{ id: 'all', name: 'All' }, ...m.categories.filter((c) => m.products.some((p) => p.category_id === Number(c.id)))];
     const promo = m.promos[0];
     const catOrder = (p) => { const i = m.categories.findIndex((c) => Number(c.id) === p.category_id); return i < 0 ? 99 : i; };
     const favs = m.products.filter((p) => p.featured).sort((x, y) => catOrder(x) - catOrder(y)).map((p) => p.name);

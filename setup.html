@@ -6,7 +6,7 @@
   <base href="/">
   <title>Cafresco · Setup</title>
   <meta name="robots" content="noindex">
-  <link rel="stylesheet" href="assets/css/app.css?v=3">
+  <link rel="stylesheet" href="assets/css/app.css?v=4">
 </head>
 <body>
   <div class="wrap"><div class="auth">
@@ -22,7 +22,7 @@
     </form>
     <div id="out"></div>
   </div></div>
-  <script src="assets/js/core.js?v=3"></script>
+  <script src="assets/js/core.js?v=4"></script>
   <script>
     CF.$('#f').onsubmit = (e) => { e.preventDefault(); CF.busy(e.submitter, async () => {
       const r = await CF.api('setup', { body: CF.formData(e.target) });
