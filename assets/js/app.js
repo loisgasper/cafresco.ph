@@ -734,13 +734,18 @@
       <label class="field"><span>Full name</span><input name="name" autocomplete="name" required maxlength="120"></label>
       <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
       <label class="field"><span>Mobile number</span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" placeholder="09XX XXX XXXX" required></label>
-      <label class="field"><span>Facebook profile link (optional)</span><input name="facebook_url" type="url" inputmode="url" maxlength="255" placeholder="https://www.facebook.com/yourname"><small class="muted">Helps us confirm it's you and message you about orders. Regulars can be upgraded to pay on pickup.</small></label>
+      <fieldset class="social" id="social">
+        <legend>Facebook or Instagram <b>(one is required)</b></legend>
+        <label class="field"><span>Facebook profile link</span><input name="facebook_url" inputmode="url" autocapitalize="off" maxlength="255" placeholder="https://www.facebook.com/yourname"></label>
+        <label class="field"><span>Instagram username or link</span><input name="instagram_url" inputmode="url" autocapitalize="off" maxlength="255" placeholder="@yourname"></label>
+        <small class="muted">We use this to confirm it's really you and to message you about orders. Verified regulars can pay on pickup.</small>
+      </fieldset>
       <label class="field"><span>Password (8+ characters)</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
-      <label class="row small" style="margin-bottom:14px;flex-wrap:nowrap"><input type="checkbox" required> I agree that Cafresco stores my name, email, mobile number and Facebook link (if given) to process my orders.</label>
+      <label class="row small" style="margin-bottom:14px;flex-wrap:nowrap"><input type="checkbox" required> I agree that Cafresco stores my name, email, mobile number and social profile link to process my orders.</label>
       <button class="btn block clay" type="submit">Create account</button>
       <div class="small" style="margin-top:14px">Already a member? <a href="#/login">Log in</a></div>
     </form>`);
-    $('#f').onsubmit = (e) => { e.preventDefault(); busy(e.submitter, async () => { const r = await api('auth/register', { body: formData(e.target) }); await onUser(r.user); toast('Account created! Check your email for the verification link.'); afterLogin(); }); };
+    $('#f').onsubmit = (e) => { e.preventDefault(); if (!e.target.facebook_url.value.trim() && !e.target.instagram_url.value.trim()) { $('#social').classList.add('need'); e.target.facebook_url.focus(); toast('Please add your Facebook or Instagram (one is enough).', true); return; } busy(e.submitter, async () => { const r = await api('auth/register', { body: formData(e.target) }); await onUser(r.user); toast('Account created! Check your email for the verification link.'); afterLogin(); }); };
   }
 
   function showForgot() {
@@ -778,7 +783,7 @@
     const pts = await api('points').catch(() => ({ balance: u.points, history: [] }));
     view.innerHTML = `<div class="wrap" style="padding-top:24px;max-width:760px">
       <h1>Hi, ${esc(u.name.split(' ')[0])}</h1>
-      ${u.trusted ? '<div class="notice clay small"><b>✓ Trusted customer.</b> You can order and pay on pickup, no GCash needed upfront.</div>' : (!u.facebook_url ? '<div class="notice small">Add your Facebook profile link below so we can confirm it\'s you. Regular customers we\'ve verified can pay on pickup instead of GCash first.</div>' : '')}
+      ${u.trusted ? '<div class="notice clay small"><b>✓ Trusted customer.</b> You can order and pay on pickup, no GCash needed upfront.</div>' : (!u.facebook_url && !u.instagram_url ? '<div class="notice small">Add your Facebook or Instagram below so we can confirm it\'s you. Regular customers we\'ve verified can pay on pickup instead of GCash first.</div>' : '')}
       <div class="kpis">
         <div class="kpi concrete"><span class="label">Points</span><b>${pts.balance}</b><span class="small muted">worth ${peso(pts.balance * S.cfg.peso_per_point)}</span></div>
         <div class="kpi"><span class="label">Earn rate</span><b>${Math.round(S.cfg.points_per_peso * 100)}</b><span class="small muted">points per ₱100 spent online</span></div>
@@ -793,7 +798,8 @@
       <div class="panel"><h2>Points history</h2>${pts.history.length ? `<div class="lines">${pts.history.map((h) => `<div class="line"><div class="grow">${esc(h.reason)}<div class="small muted">${fmtDate(h.created_at)}</div></div><div class="amt">${h.delta > 0 ? '+' : ''}${h.delta}</div></div>`).join('')}</div>` : '<p class="muted">Complete an online order to start earning.</p>'}</div>
       <div class="panel"><h2>Profile</h2><form id="pf">
         <label class="field"><span>Name</span><input name="name" value="${esc(u.name)}" required></label>
-        <label class="field"><span>Facebook profile link</span><input name="facebook_url" type="url" inputmode="url" maxlength="255" value="${esc(u.facebook_url || '')}" placeholder="https://www.facebook.com/yourname"></label>
+        <div class="grid2"><label class="field"><span>Facebook profile link</span><input name="facebook_url" inputmode="url" autocapitalize="off" maxlength="255" value="${esc(u.facebook_url || '')}" placeholder="https://www.facebook.com/yourname"></label>
+        <label class="field"><span>Instagram</span><input name="instagram_url" inputmode="url" autocapitalize="off" maxlength="255" value="${esc(u.instagram_url || '')}" placeholder="@yourname"></label></div>
         <div class="grid2"><label class="field"><span>Current password</span><input name="current_password" type="password" autocomplete="current-password"></label>
         <label class="field"><span>New password</span><input name="new_password" type="password" minlength="8" autocomplete="new-password"></label></div>
         <button class="btn ghost" type="submit">Save</button></form></div>

@@ -69,8 +69,10 @@ function create_account(string $role): array
     if (q1('SELECT id FROM users WHERE email = ?', [$email])) fail(409, 'An account with this email already exists.');
     if (q1('SELECT id FROM users WHERE mobile = ?', [$mobile])) fail(409, 'An account with this mobile number already exists.');
     $fb = facebook_url_in();
-    q('INSERT INTO users (role, name, email, mobile, password_hash, facebook_url) VALUES (?, ?, ?, ?, ?, ?)',
-        [$role, $name, $email, $mobile, password_hash($pw, PASSWORD_DEFAULT), $fb]);
+    $ig = instagram_url_in();
+    if ($role === 'customer' && !$fb && !$ig) fail(422, 'Please add your Facebook or Instagram profile link. We use it to confirm your identity.');
+    q('INSERT INTO users (role, name, email, mobile, password_hash, facebook_url, instagram_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [$role, $name, $email, $mobile, password_hash($pw, PASSWORD_DEFAULT), $fb, $ig]);
     $u = q1('SELECT * FROM users WHERE id = ?', [db()->lastInsertId()]);
     send_verification_email($u);
     return $u;
@@ -87,6 +89,20 @@ function facebook_url_in(): ?string
     }
     $url = preg_match('~^https?://~i', $raw) ? $raw : 'https://' . $raw;
     return mb_substr(preg_replace('~^http://~i', 'https://', $url), 0, 255);
+}
+
+/** Optional Instagram profile link. Accepts instagram.com links, @handle, or a bare handle. */
+function instagram_url_in(): ?string
+{
+    $raw = trim(str_in('instagram_url', 255));
+    if ($raw === '') return null;
+    $handle = null;
+    if (preg_match('/^@?([A-Za-z0-9._]{1,30})$/', $raw, $m)) $handle = $m[1];
+    elseif (preg_match('~^(https?://)?(www\.|m\.)?(instagram\.com|instagr\.am)/([A-Za-z0-9._]{1,30})/?(\?.*)?$~i', $raw, $m)) $handle = $m[4];
+    if (!$handle || in_array(strtolower($handle), ['p', 'reel', 'reels', 'stories', 'explore', 'accounts'], true)) {
+        fail(422, 'Please enter your Instagram username or profile link (for example @yourname).');
+    }
+    return 'https://www.instagram.com/' . $handle . '/';
 }
 
 function auth_register(): array
@@ -199,7 +215,14 @@ function auth_profile(): array
     $u = require_user();
     $name = str_in('name', 120, true);
     q('UPDATE users SET name = ? WHERE id = ?', [$name, $u['id']]);
-    if (array_key_exists('facebook_url', input())) q('UPDATE users SET facebook_url = ? WHERE id = ?', [facebook_url_in(), $u['id']]);
+    $social = [
+        'facebook_url' => array_key_exists('facebook_url', input()) ? facebook_url_in() : $u['facebook_url'],
+        'instagram_url' => array_key_exists('instagram_url', input()) ? instagram_url_in() : ($u['instagram_url'] ?? null),
+    ];
+    if ($u['role'] === 'customer' && !$social['facebook_url'] && !$social['instagram_url'] && ($u['facebook_url'] || ($u['instagram_url'] ?? null))) {
+        fail(422, 'Keep at least one of your Facebook or Instagram links. We use it to confirm your identity.');
+    }
+    q('UPDATE users SET facebook_url = ?, instagram_url = ? WHERE id = ?', [$social['facebook_url'], $social['instagram_url'], $u['id']]);
     $new = (string)in('new_password', '');
     if ($new !== '') {
         if (!password_verify((string)in('current_password', ''), $u['password_hash'])) fail(422, 'Current password is wrong.');
@@ -260,6 +283,7 @@ function run_migrations(): void
         ADD COLUMN rider_fee DECIMAL(10,2) NULL AFTER rider_id, ADD COLUMN rider_quote_status ENUM('pending','accepted') NULL AFTER rider_fee,
         ADD COLUMN rider_quote_at DATETIME NULL AFTER rider_quote_status, ADD COLUMN declined_riders VARCHAR(500) NULL AFTER rider_quote_at");
     if (!$has('users', 'facebook_url')) db()->exec('ALTER TABLE users ADD COLUMN facebook_url VARCHAR(255) NULL AFTER points_balance, ADD COLUMN trusted TINYINT(1) NOT NULL DEFAULT 0 AFTER facebook_url');
+    if (!$has('users', 'instagram_url')) db()->exec('ALTER TABLE users ADD COLUMN instagram_url VARCHAR(255) NULL AFTER facebook_url');
     db()->exec('CREATE TABLE IF NOT EXISTS support_messages (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, sender_id INT UNSIGNED NULL,
       from_staff TINYINT(1) NOT NULL DEFAULT 0, body TEXT NOT NULL, seen_at DATETIME NULL,

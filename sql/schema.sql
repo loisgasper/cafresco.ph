@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   status ENUM('active','blocked') NOT NULL DEFAULT 'active',
   points_balance INT NOT NULL DEFAULT 0,
   facebook_url VARCHAR(255) NULL,
+  instagram_url VARCHAR(255) NULL,
   trusted TINYINT(1) NOT NULL DEFAULT 0,
   staff_note VARCHAR(500) NULL,
   last_login_at DATETIME NULL,

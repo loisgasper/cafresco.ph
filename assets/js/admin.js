@@ -366,6 +366,7 @@
             <div style="flex:1"><b>${esc(u.name)}</b> ${u.role === 'rider' ? '<span class="tag">Rider</span>' : ''} ${u.trusted ? '<span class="tag clay">✓ Trusted</span>' : ''}
             <div class="small muted">${esc(u.mobile)} · ${u.completed_orders} completed order(s)</div></div>
             ${u.facebook_url ? `<a class="btn sm ghost" href="${esc(u.facebook_url)}" target="_blank" rel="noopener">Facebook ↗</a>` : ''}
+            ${u.instagram_url ? `<a class="btn sm ghost" href="${esc(u.instagram_url)}" target="_blank" rel="noopener">Instagram ↗</a>` : ''}
             ${u.role === 'customer' ? `<button class="btn sm ${u.trusted ? 'ghost' : 'clay'}" id="trustBtn">${u.trusted ? 'Remove trusted' : 'Mark trusted'}</button>` : ''}</header>
           <div class="chatlog" id="clog"></div>
           <form class="chatform" id="cform"><textarea rows="2" maxlength="2000" placeholder="Reply to ${esc(u.name.split(' ')[0])}…"></textarea><button class="btn clay" type="submit">Send</button></form>`;
@@ -401,7 +402,7 @@
     main().innerHTML = `<div class="toolbar"><h1>Customers</h1><form id="cf" class="row"><input name="q" value="${esc(q)}" placeholder="Name, email, mobile"><button class="btn sm" style="min-height:46px">Search</button></form></div>
       <div class="tablewrap"><table class="t"><thead><tr><th>Customer</th><th>Verified</th><th>Orders</th><th>Spend</th><th>Points</th><th>Status</th></tr></thead><tbody>
       ${customers.map((c) => `<tr class="click" data-cid="${c.id}"><td><b>${esc(c.name)}</b><div class="small muted">${esc(c.email)} · ${esc(c.mobile)}</div>${c.staff_note ? `<div class="small">📝 ${esc(c.staff_note)}</div>` : ''}
-          <div class="row small" style="gap:6px;margin-top:4px">${Number(c.trusted) ? '<span class="tag clay">✓ Trusted</span>' : ''}${c.facebook_url ? `<a href="${esc(c.facebook_url)}" target="_blank" rel="noopener" data-stop>Facebook ↗</a>` : '<span class="muted">No Facebook link</span>'}</div></td>
+          <div class="row small" style="gap:6px;margin-top:4px">${Number(c.trusted) ? '<span class="tag clay">✓ Trusted</span>' : ''}${c.facebook_url ? `<a href="${esc(c.facebook_url)}" target="_blank" rel="noopener" data-stop>Facebook ↗</a>` : ''}${c.instagram_url ? `<a href="${esc(c.instagram_url)}" target="_blank" rel="noopener" data-stop>Instagram ↗</a>` : ''}${!c.facebook_url && !c.instagram_url ? '<span class="muted">No Facebook / Instagram</span>' : ''}</div></td>
         <td class="small">${c.email_verified_at ? '✓ email' : '✗ email'}<br>${c.mobile_verified_at ? '✓ mobile' : '✗ mobile'}</td><td>${c.completed_orders}</td><td class="mono">${peso(c.lifetime_spend)}</td>
         <td>${c.points_balance}</td><td>${c.status === 'blocked' ? '<span class="tag bad">Blocked</span>' : '<span class="tag ok">Active</span>'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No customers yet.</td></tr>'}</tbody></table></div>`;
     $('#cf').onsubmit = (e) => { e.preventDefault(); location.hash = '#/customers?q=' + encodeURIComponent(e.target.q.value); };
@@ -410,7 +411,7 @@
 
   function editCustomer(c) {
     const m = modal(c.name, `<p class="small muted">${esc(c.email)} · ${esc(c.mobile)} · joined ${fmtDate(c.created_at)}</p>
-      <div class="row" style="margin-bottom:14px">${c.facebook_url ? `<a class="btn sm ghost" href="${esc(c.facebook_url)}" target="_blank" rel="noopener">Open Facebook ↗</a>` : '<span class="small muted">No Facebook link yet.</span>'}<a class="btn sm" href="admin/#/inbox/${c.id}">💬 Message in app</a></div>
+      <div class="row" style="margin-bottom:14px">${c.facebook_url ? `<a class="btn sm ghost" href="${esc(c.facebook_url)}" target="_blank" rel="noopener">Open Facebook ↗</a>` : ''}${c.instagram_url ? `<a class="btn sm ghost" href="${esc(c.instagram_url)}" target="_blank" rel="noopener">Open Instagram ↗</a>` : ''}${!c.facebook_url && !c.instagram_url ? '<span class="small muted">No Facebook or Instagram yet.</span>' : ''}<a class="btn sm" href="admin/#/inbox/${c.id}">💬 Message in app</a></div>
       <form id="cuf">
         <label class="check" style="display:flex;gap:10px;align-items:flex-start;padding:12px;margin-bottom:14px"><input type="checkbox" name="trusted" ${Number(c.trusted) ? 'checked' : ''} style="margin-top:3px">
           <span><b>Trusted customer</b><br><span class="small muted">Can skip GCash and pay on pickup, with no first-order limit. Only turn this on after you've confirmed who they are (for example on Facebook).</span></span></label>
@@ -435,7 +436,7 @@
         <div class="small">${c.rider_count} approved riders ${Number(c.active) ? '' : '<span class="tag">inactive</span>'}</div></div>`).join('') || '<div class="empty">Add the rider companies in your city first.</div>'}</div>
       <div class="tablewrap"><table class="t"><thead><tr><th>Rider</th><th>Company</th><th>Vehicle</th><th>Status</th><th>Deliveries</th><th></th></tr></thead><tbody>
       ${riders.map((r) => `<tr><td><b>${esc(r.name)}</b><div class="small muted">${esc(r.mobile)} · ${esc(r.email)}</div>
-          <div class="row small" style="gap:8px;margin-top:4px">${r.facebook_url ? `<a href="${esc(r.facebook_url)}" target="_blank" rel="noopener">Facebook ↗</a>` : '<span class="muted">No Facebook link</span>'}<a href="admin/#/inbox/${r.id}">💬 Message</a></div></td><td>${esc(cname(r.company_id))}</td>
+          <div class="row small" style="gap:8px;margin-top:4px">${r.facebook_url ? `<a href="${esc(r.facebook_url)}" target="_blank" rel="noopener">Facebook ↗</a>` : ''}${r.instagram_url ? `<a href="${esc(r.instagram_url)}" target="_blank" rel="noopener">Instagram ↗</a>` : ''}${!r.facebook_url && !r.instagram_url ? '<span class="muted">No Facebook / Instagram</span>' : ''}<a href="admin/#/inbox/${r.id}">💬 Message</a></div></td><td>${esc(cname(r.company_id))}</td>
         <td class="small">${esc(r.vehicle || '')} ${esc(r.plate_no || '')}</td>
         <td>${r.approval === 'approved' ? (Number(r.is_online) ? '<span class="tag ok">● Online</span>' : '<span class="tag">Offline</span>') : `<span class="tag ${r.approval === 'pending' ? 'clay' : 'bad'}">${r.approval}</span>`}
           ${r.status === 'blocked' ? '<span class="tag bad">blocked</span>' : ''}</td><td>${r.deliveries}</td>

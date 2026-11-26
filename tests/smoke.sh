@@ -24,7 +24,9 @@ CO=$(post admin admin/rider-companies "{\"name\":\"Speedy $U\",\"base_rate\":\"5
 get anon config | grep -q "Speedy $U" && ok "starting rate in public config"
 
 # customer
-post cust auth/register "{\"name\":\"Ana $U\",\"email\":\"ana$U@test.ph\",\"mobile\":\"0918${U}00\",\"password\":\"secret123\"}" | j user.id >/dev/null && ok customer registered
+post nosoc auth/register "{\"name\":\"No Social $U\",\"email\":\"nos$U@test.ph\",\"mobile\":\"0914${U}04\",\"password\":\"secret123\"}" | grep -q 'Facebook or Instagram' && ok "sign-up without Facebook or Instagram refused"
+post cust auth/register "{\"name\":\"Ana $U\",\"email\":\"ana$U@test.ph\",\"mobile\":\"0918${U}00\",\"password\":\"secret123\",\"instagram_url\":\"@ana.$U\"}" | j user.instagram_url | grep -q "instagram.com/ana.$U/" && ok "customer registered with Instagram handle"
+post cust auth/profile "{\"name\":\"Ana $U\",\"instagram_url\":\"\",\"facebook_url\":\"\"}" | grep -q 'Keep at least one' && ok "cannot remove both social links"
 ITEMS="[{\"product_id\":$PID,\"variant_id\":$VID,\"addon_ids\":[$AID],\"qty\":2}]"
 R=$(post cust orders "{\"items\":$ITEMS,\"fulfillment\":\"pickup\",\"payment_method\":\"gcash\"}"); echo "$R" | grep -q 'verify your email' && ok "unverified customer blocked"
 TOKEN=$(grep -o 'verify-email/[a-f0-9]*' "$MAILLOG" | tail -1 | cut -d/ -f2)

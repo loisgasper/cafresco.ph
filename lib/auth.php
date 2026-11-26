@@ -75,6 +75,7 @@ function user_public(?array $u): ?array
         'mobile_verified' => $u['mobile_verified_at'] !== null,
         'points' => (int)$u['points_balance'],
         'facebook_url' => $u['facebook_url'] ?? null,
+        'instagram_url' => $u['instagram_url'] ?? null,
         'trusted' => (bool)($u['trusted'] ?? false),
     ];
     if ($u['role'] === 'rider') {

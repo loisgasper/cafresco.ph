@@ -291,7 +291,7 @@ function admin_customers(): array
         $like = '%' . $_GET['q'] . '%';
         $params = [$like, $like, $like];
     }
-    $rows = qall("SELECT u.id, u.name, u.email, u.mobile, u.status, u.points_balance, u.facebook_url, u.trusted, u.email_verified_at, u.mobile_verified_at, u.staff_note, u.created_at,
+    $rows = qall("SELECT u.id, u.name, u.email, u.mobile, u.status, u.points_balance, u.facebook_url, u.instagram_url, u.trusted, u.email_verified_at, u.mobile_verified_at, u.staff_note, u.created_at,
         (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id AND o.status = 'completed') AS completed_orders,
         (SELECT COALESCE(SUM(total),0) FROM orders o WHERE o.user_id = u.id AND o.status = 'completed') AS lifetime_spend
         FROM users u WHERE $where ORDER BY u.id DESC LIMIT 300", $params);
@@ -331,7 +331,7 @@ function admin_riders(): array
     q('UPDATE rider_profiles SET is_online = 0 WHERE is_online = 1 AND (last_seen_at IS NULL OR last_seen_at < ?)', [date('Y-m-d H:i:s', time() - 1800)]);
     return [
         'companies' => qall('SELECT c.*, (SELECT COUNT(*) FROM rider_profiles rp WHERE rp.company_id = c.id AND rp.approval = "approved") AS rider_count FROM rider_companies c ORDER BY c.name'),
-        'riders' => qall('SELECT u.id, u.name, u.email, u.mobile, u.facebook_url, u.status, u.created_at, rp.company_id, rp.vehicle, rp.plate_no, rp.approval, rp.is_online, rp.last_seen_at,
+        'riders' => qall('SELECT u.id, u.name, u.email, u.mobile, u.facebook_url, u.instagram_url, u.status, u.created_at, rp.company_id, rp.vehicle, rp.plate_no, rp.approval, rp.is_online, rp.last_seen_at,
             (SELECT COUNT(*) FROM orders o WHERE o.rider_id = u.id AND o.status = "completed") AS deliveries
             FROM users u JOIN rider_profiles rp ON rp.user_id = u.id ORDER BY rp.approval = "pending" DESC, u.name'),
     ];

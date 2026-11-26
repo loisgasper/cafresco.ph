@@ -64,7 +64,7 @@ function chat_send(): array
 function admin_chats(): array
 {
     require_staff();
-    $rows = qall('SELECT t.user_id, t.last_id, t.unread, u.name, u.role, u.mobile, u.facebook_url, u.trusted, m.body AS last_body, m.from_staff AS last_from_staff, m.created_at AS last_at
+    $rows = qall('SELECT t.user_id, t.last_id, t.unread, u.name, u.role, u.mobile, u.facebook_url, u.instagram_url, u.trusted, m.body AS last_body, m.from_staff AS last_from_staff, m.created_at AS last_at
         FROM (SELECT user_id, MAX(id) last_id, SUM(from_staff = 0 AND seen_at IS NULL) unread FROM support_messages GROUP BY user_id) t
         JOIN users u ON u.id = t.user_id JOIN support_messages m ON m.id = t.last_id
         ORDER BY t.unread > 0 DESC, t.last_id DESC LIMIT 200');
@@ -83,7 +83,7 @@ function admin_chat_unread(): int
 
 function admin_chat_user(int $id): array
 {
-    $u = q1('SELECT id, name, role, email, mobile, facebook_url, trusted, created_at FROM users WHERE id = ? AND role IN ("customer","rider")', [$id]);
+    $u = q1('SELECT id, name, role, email, mobile, facebook_url, instagram_url, trusted, created_at FROM users WHERE id = ? AND role IN ("customer","rider")', [$id]);
     if (!$u) fail(404, 'User not found.');
     $u['id'] = (int)$u['id'];
     $u['trusted'] = (bool)$u['trusted'];
